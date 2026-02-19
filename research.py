@@ -105,55 +105,6 @@ def line_graph(x_series, y_series, ax, **kwargs):
 
     # Old parameters that are still relevant in the nondimensionalized system
 
-old_params = {
-    'q': 0.0002,
-    'r': 0.02,
-    'K': 1.0,
-    'Pw1': 5,
-    'Pw0': 1,
-    'C1': 2,
-    'C0': 1,
-    'e_sm': 1.0,
-}
-new_params = {
-    'gamma_m': 1.0 / (old_params['Pw0'] * (old_params['r'] * old_params['K']) ** (old_params['e_sm'] / 2)), # gamma_m / (Pw0 * (r * K)^(e_sm / 2)...
-    'gamma_f': 110 * old_params['Pw0'],                         # gamma_f * Pw0
-    'gamma_s': 1.0 * old_params['r'],                           # gamma_s * r
-    'gamma_e': 0.6 * old_params['C0'],                          # gamma_e * C0
-    'gamma_p': 5000.0 * old_params['r'] * old_params['K'],         # gamma_s * r * K
-    'e_sm': 1.0,
-    'e_sw': 1.0,
-    'e_d': 1.0,
-    'F_threshold': 0.05,
-    'q': (old_params['q'] * old_params['Pw0'] * old_params['K']) / old_params['C0'],        # (q * Pw0 * K) / C0
-    'pw': old_params['Pw1']/old_params['Pw0'],                                              # Pw1/Pw0
-    'c': old_params['C1']/old_params['C0'],                     # C1/C0
-}
-new_params_without_old_influence = {
-    'gamma_m': 1.0,
-    'gamma_f': 5.0,
-    'gamma_s': 1.0,
-    'gamma_e': 1.2,
-    'gamma_p': 11.0,
-    'gamma_fp': 1.0,
-    'q': 0.5,
-    'e_d': 1.0,
-    'e_sw': 1.0,
-    'e_sm': 1.0,
-    'F_threshold': 0.15,
-    'pw': 6.0,
-    'c': 3.0
-}
-# Initial starting values 
-init_vals = [0.5, 0.5, 0.2, 0.5]
-total_time = 50
-bifurcation_transient = int(total_time - (0.25 * total_time))
-params = new_params_without_old_influence
-fig, axs = plt.subplots(3, 2, figsize=(15, 15))
-y_lim = None
-param_bifurcation = 'gamma_p'
-param_range = [0.1, 20, 300]
-
 def system_map(state, params):
     S, E, F, FP = state
     # Unpack parameters dictionary for clarity
@@ -177,7 +128,7 @@ def system_map(state, params):
     F_new = fraudster_state(S, E, F, FP, gamma_f, gamma_m, gamma_p, pw, e_sw, e_sm, e_d)
     Fp_new = p_fraudster_state(F, FP, F_threshold, gamma_fp)
     return np.array([S_new, E_new, F_new, Fp_new])
-def time_series(ax, params, initial_vals, time=total_time):
+def time_series(ax, params, initial_vals, time):
     seafood, effort, fraudsters, p_fraudsters = np.array([initial_vals[0]], dtype=np.longdouble), np.array([initial_vals[1]], dtype=np.longdouble), np.array([initial_vals[2]], dtype=np.longdouble), np.array([initial_vals[3]], dtype=np.longdouble)
     time_period = []
     for i in range(time):
@@ -189,9 +140,10 @@ def time_series(ax, params, initial_vals, time=total_time):
     time_period.append(time)
             
     line_graph([time_period, time_period, time_period, time_period], [seafood, effort, fraudsters, p_fraudsters], ax, title=f"Time Series", y_label="Levels", x_label="Time (t)", line_label=["Seafood", "Effort", "Fraudsters", "Perceived Fraudsters"], line_color=["Blue", "green", "red", "pink"], y_lim=y_lim)
-def bifurcation(ax, param_name, param_linspace, y_state_var):
-    # Transient should be less than steps
-    def run_system(params, steps=total_time, transient=bifurcation_transient):
+def bifurcation(ax, params, param_name, param_linspace, time, y_state_var):
+    bifurcation_transient = int(time - (0.25 * time))
+    
+    def run_system(params, steps=time, transient=bifurcation_transient):
         # Initial starting points
         S, E, F, FP = init_vals
         
@@ -249,7 +201,7 @@ def bifurcation(ax, param_name, param_linspace, y_state_var):
     ax.set_ylabel(y_state_var)
     ax.set_ylim([0, 1.1])
     ax.grid(True, alpha=0.3)
-def stability_analysis():
+def stability_analysis(params):
     def equations_to_zero(x):
         """
         For fixed points, we want X_{t+1} - X_{t} = 0.
@@ -307,7 +259,7 @@ def stability_analysis():
 
     is_stable = all(m < 1.0 for m in magnitudes)
     print(f"\nSystem Stability at Fixed Point: {'STABLE' if is_stable else 'UNSTABLE'}")
-def poincare(ax, params, initial_vals, time=total_time):
+def poincare(ax, params, initial_vals, time):
     seafood, effort, fraudsters, p_fraudsters = np.array([initial_vals[0]], dtype=np.longdouble), np.array([initial_vals[1]], dtype=np.longdouble), np.array([initial_vals[2]], dtype=np.longdouble), np.array([initial_vals[3]], dtype=np.longdouble)
     time_period = []
     for i in range(time):
@@ -321,13 +273,23 @@ def poincare(ax, params, initial_vals, time=total_time):
     # For seafood
     line_graph([seafood[:-1]], [seafood[1:]], ax, title=f"Poincare", y_label="Seafood + 1", x_label="Seafood", line_label=["Seafood"], line_color=["Blue"], y_lim=y_lim)
 
-def exec(params, init_vals, **kwargs):
-    time_series(axs[0][0], params, init_vals)
-    poincare(axs[0][1], params, init_vals)
-    bifurcation(axs[1][0], param_bifurcation, param_range, 'fraudsters')
-    bifurcation(axs[1][1], param_bifurcation, param_range, 'p_fraudsters')
-    bifurcation(axs[2][0], param_bifurcation, param_range, 'effort')
-    bifurcation(axs[2][1], param_bifurcation, param_range, 'seafood')
+# Initial starting values 
+init_vals = [0.5, 0.5, 0.2, 0.5]
+total_time = 50
+
+fig, axs = plt.subplots(3, 2, figsize=(15, 15))
+y_lim = None
+
+def exec(params, init_vals, param_bifurcation, param_range, total_time, **kwargs):
+    if kwargs['fire'] == False:
+        return
+    
+    time_series(axs[0][0], params, init_vals, total_time)
+    poincare(axs[0][1], params, init_vals, total_time)
+    bifurcation(axs[1][0], params, param_bifurcation, param_range, total_time, 'fraudsters')
+    bifurcation(axs[1][1], params, param_bifurcation, param_range, total_time, 'p_fraudsters')
+    bifurcation(axs[2][0], params, param_bifurcation, param_range, total_time, 'effort')
+    bifurcation(axs[2][1], params, param_bifurcation, param_range, total_time, 'seafood')
     plt.show()
     stability_analysis()
 
@@ -335,19 +297,88 @@ def exec(params, init_vals, **kwargs):
 exec(
     params={
         'gamma_m': 1.0,
-        'gamma_f': 5.0,
+        'gamma_f': 1.0,
         'gamma_s': 1.0,
-        'gamma_e': 1.2,
-        'gamma_p': 11.0,
+        'gamma_e': 1.0,
+        'gamma_p': 1.0,
         'gamma_fp': 1.0,
-        'q': 0.5,
         'e_d': 1.0,
         'e_sw': 1.0,
         'e_sm': 1.0,
-        'F_threshold': 0.15,
-        'pw': 6.0,
-        'c': 3.0
+        'F_threshold': 0.5,
+        'q': 0.5,
+        'pw': 1.0,
+        'c': 0.5
     },
-    init_vals=[0.5, 0.5, 0.2, 0.5],
-    comments="xyz there were oscillations!"
+    init_vals=[0.5, 0.5, 0.5, 0.5], # [S, E, F, FP]
+    param_bifurcation='c',
+    param_range=[0.1, 1.0, 300],
+    total_time=300,
+    fire=False,
+    comments='''
+        PRE:
+            This is kinda a based off running some stuff with setting all params to 1 and seeing what I could do there. 
+            Seems like (obviously) pw and c are the drivers for this entire system, with q being an "enabler" of sorts and F_threshold being the threshold of
+            the perception of fraudsters advocating against fraud. 
+            
+        POST:
+            k so maybe I need the gammas cause there's literally nothing happening and it's just always stable. 
+            q lineraly correlated to where Effort will be, and pw + c doesn't do anything
+    '''
 )
+
+exec(
+    params={
+        'gamma_m': 1.0,
+        'gamma_f': 1.0,
+        'gamma_s': 1.0,
+        'gamma_e': 1.0,
+        'gamma_p': 10.0,
+        'gamma_fp': 1.0,
+        'e_d': 1.0,
+        'e_sw': 1.0,
+        'e_sm': 1.0,
+        'F_threshold': 0.5,
+        'q': 0.5,
+        'pw': 1.0,
+        'c': 0.5
+    },
+    init_vals=[0.5, 0.5, 0.5, 0.5], # [S, E, F, FP]
+    param_bifurcation='c',
+    param_range=[0.1, 1.0, 300],
+    total_time=300,
+    fire=False,
+    comments='''
+        COOL!
+        param_p is a driver for ossicilations? There's osscillations that's for sure. It's like weird square like shapes. Cool to share.
+    '''
+)
+
+exec(
+    params={
+        'gamma_m': 1.0,
+        'gamma_f': 1.0,
+        'gamma_s': 1.0,
+        'gamma_e': 1.0,
+        'gamma_p': 1.0,
+        'gamma_fp': 1.0,
+        'e_d': 1.0,
+        'e_sw': 1.0,
+        'e_sm': 1.0,
+        'F_threshold': 0.5,
+        'q': 0.5,
+        'pw': 0.5,
+        'c': 0.5
+    },
+    init_vals=[0.5, 0.5, 0.5, 0.5], # [S, E, F, FP]
+    param_bifurcation='q',
+    param_range=[0.1, 1.0, 300],
+    total_time=1000,
+    fire=True,
+    comments='''
+        current test
+    '''
+)
+
+
+
