@@ -347,7 +347,7 @@ exec(
     param_bifurcation='c',
     param_range=[0.1, 1.0, 300],
     total_time=300,
-    fire=False,
+    fire=True,
     comments='''
         COOL!
         param_p is a driver for ossicilations? There's osscillations that's for sure. It's like weird square like shapes. Cool to share.
@@ -374,7 +374,33 @@ exec(
     param_bifurcation='q',
     param_range=[0.1, 1.0, 300],
     total_time=1000,
-    fire=True,
+    fire=False,
+    comments='''
+        current test
+    '''
+)
+
+exec(
+    params={
+        'gamma_m': 1.0,
+        'gamma_f': 1.0,
+        'gamma_s': 1.0,
+        'gamma_e': 1.0,
+        'gamma_p': 1.0,
+        'gamma_fp': 1.0,
+        'e_d': 1.0,
+        'e_sw': 1.0,
+        'e_sm': 1.0,
+        'F_threshold': 0.5,
+        'q': 0.5,
+        'pw': 0.5,
+        'c': 0.5
+    },
+    init_vals=[0.5, 0.5, 0.5, 0.5], # [S, E, F, FP]
+    param_bifurcation='q',
+    param_range=[0.1, 1.0, 300],
+    total_time=1000,
+    fire=False,
     comments='''
         current test
     '''
