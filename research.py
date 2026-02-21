@@ -9,6 +9,8 @@ from numpy.linalg import eigvals
 # import warnings
 # warnings.filterwarnings("ignore")
 bump = 1e-9
+bump = 0
+legacy_gamma_fp = 1.0
 seafood_state = lambda S, E, gamma_s: S * np.exp(gamma_s * (1 - S - E))
 def effort_state(E, S, F, q, pw, c, e_sw, gamma_p, gamma_e): 
     term_1 = (F * (pw - 1) + 1)
@@ -28,8 +30,8 @@ def fraudster_state(S, E, F, Fp, gamma_f, gamma_m, gamma_p, pw, e_sw, e_sm, e_d)
     if bump != 0:
         delta = np.clip(delta, -20, 20) # Prevent overflow
     return (F * np.exp(delta)) / (1 + F * (np.exp(delta) - 1))
-def p_fraudster_state(F, Fp, F_threshold, gamma_fp): 
-    delta_fp = gamma_fp * (F - F_threshold)
+def p_fraudster_state(F, Fp, F_threshold): 
+    delta_fp = legacy_gamma_fp * (F - F_threshold)
     exp_delta_fp = np.exp(delta_fp)
     
     return (Fp * exp_delta_fp) / (1 + Fp * (exp_delta_fp - 1))
@@ -113,7 +115,6 @@ def system_map(state, params):
     gamma_s = params['gamma_s']
     gamma_e = params['gamma_e']
     gamma_p = params['gamma_p']
-    gamma_fp = params['gamma_fp']
     e_sm = params['e_sm']
     e_sw = params['e_sw']
     e_d = params['e_d']
@@ -126,7 +127,7 @@ def system_map(state, params):
     S_new = seafood_state(S, E, gamma_s)
     E_new = effort_state(E, S, F, q, pw, c, e_sw, gamma_p, gamma_e)
     F_new = fraudster_state(S, E, F, FP, gamma_f, gamma_m, gamma_p, pw, e_sw, e_sm, e_d)
-    Fp_new = p_fraudster_state(F, FP, F_threshold, gamma_fp)
+    Fp_new = p_fraudster_state(F, FP, F_threshold)
     return np.array([S_new, E_new, F_new, Fp_new])
 def time_series(ax, params, initial_vals, time):
     seafood, effort, fraudsters, p_fraudsters = np.array([initial_vals[0]], dtype=np.longdouble), np.array([initial_vals[1]], dtype=np.longdouble), np.array([initial_vals[2]], dtype=np.longdouble), np.array([initial_vals[3]], dtype=np.longdouble)
@@ -136,7 +137,7 @@ def time_series(ax, params, initial_vals, time):
         seafood = np.append(seafood, seafood_state(seafood[i], effort[i], params['gamma_s']))
         effort = np.append(effort, effort_state(effort[i], seafood[i], fraudsters[i], params['q'], params['pw'], params['c'], params['e_sw'], params['gamma_p'], params['gamma_e']))
         fraudsters = np.append(fraudsters, fraudster_state(seafood[i], effort[i], fraudsters[i], p_fraudsters[i], params['gamma_f'], params['gamma_m'], params['gamma_p'], params['pw'], params['e_sw'], params['e_sm'], params['e_d']))
-        p_fraudsters = np.append(p_fraudsters, p_fraudster_state(fraudsters[i], p_fraudsters[i], params['F_threshold'], params['gamma_fp']))
+        p_fraudsters = np.append(p_fraudsters, p_fraudster_state(fraudsters[i], p_fraudsters[i], params['F_threshold']))
     time_period.append(time)
             
     line_graph([time_period, time_period, time_period, time_period], [seafood, effort, fraudsters, p_fraudsters], ax, title=f"Time Series", y_label="Levels", x_label="Time (t)", line_label=["Seafood", "Effort", "Fraudsters", "Perceived Fraudsters"], line_color=["Blue", "green", "red", "pink"], y_lim=y_lim)
@@ -157,7 +158,7 @@ def bifurcation(ax, params, param_name, param_linspace, time, y_state_var):
             F_new = fraudster_state(S, E, F, FP, params['gamma_f'], params['gamma_m'], 
                                     params['gamma_p'], params['pw'], params['e_sw'], 
                                     params['e_sm'], params['e_d'])
-            FP_new = p_fraudster_state(F, FP, params['F_threshold'], params['gamma_fp'])
+            FP_new = p_fraudster_state(F, FP, params['F_threshold'])
             
             # Safety Clip
             S, E, F, FP = np.maximum([S_new, E_new, F_new, FP_new], 1e-6)
@@ -267,7 +268,7 @@ def poincare(ax, params, initial_vals, time):
         seafood = np.append(seafood, seafood_state(seafood[i], effort[i], params['gamma_s']))
         effort = np.append(effort, effort_state(effort[i], seafood[i], fraudsters[i], params['q'], params['pw'], params['c'], params['e_sw'], params['gamma_p'], params['gamma_e']))
         fraudsters = np.append(fraudsters, fraudster_state(seafood[i], effort[i], fraudsters[i], p_fraudsters[i], params['gamma_f'], params['gamma_m'], params['gamma_p'], params['pw'], params['e_sw'], params['e_sm'], params['e_d']))
-        p_fraudsters = np.append(p_fraudsters, p_fraudster_state(fraudsters[i], p_fraudsters[i], params['F_threshold'], params['gamma_fp']))
+        p_fraudsters = np.append(p_fraudsters, p_fraudster_state(fraudsters[i], p_fraudsters[i], params['F_threshold']))
     time_period.append(time)
          
     # For seafood
@@ -281,9 +282,25 @@ fig, axs = plt.subplots(3, 2, figsize=(15, 15))
 y_lim = None
 
 def exec(params, init_vals, param_bifurcation, param_range, total_time, **kwargs):
-    if kwargs['fire'] == False:
+    if not kwargs['fire']:
         return
-    
+    # Converts old params into non-dimensionalized params
+    if not kwargs['legacy']: 
+        new_params = {
+            'gamma_m': params['gamma_m']  / (params['pw0'] * (params['r'] * params['K']) ** (params['e_sm'] / 2.0)),  # gamma_m / (Pw0 * (r * K)^(e_sm / 2)
+            'gamma_f': params['gamma_f'] * params['pw0'],                   # gamma_f * Pw0
+            'gamma_s': params['gamma_s'] * params['r'],                     # gamma_s * r
+            'gamma_e': params['gamma_e'] * params['c0'],                    # gamma_e * C0
+            'gamma_p': params['gamma_p'] * params['r'] * params['K'],       # gamma_p * r * K
+            'e_sm': params['e_sm'],
+            'e_sw': params['e_sw'],
+            'e_d': params['e_d'],
+            'F_threshold': params['F_threshold'],
+            'q': (params['q'] * params['pw0'] * params['K']) / params['c0'],    # (q * Pw0 * K) / C0
+            'pw': params['pw1'] / params['pw0'],                                # Pw1/Pw0
+            'c': params['c1'] / params['c0'],                                   # C1/C0
+        }
+        params = new_params
     time_series(axs[0][0], params, init_vals, total_time)
     poincare(axs[0][1], params, init_vals, total_time)
     bifurcation(axs[1][0], params, param_bifurcation, param_range, total_time, 'fraudsters')
@@ -291,7 +308,7 @@ def exec(params, init_vals, param_bifurcation, param_range, total_time, **kwargs
     bifurcation(axs[2][0], params, param_bifurcation, param_range, total_time, 'effort')
     bifurcation(axs[2][1], params, param_bifurcation, param_range, total_time, 'seafood')
     plt.show()
-    stability_analysis()
+    stability_analysis(params)
 
  
 exec(
@@ -315,6 +332,7 @@ exec(
     param_range=[0.1, 1.0, 300],
     total_time=300,
     fire=False,
+    legacy=True,
     comments='''
         PRE:
             This is kinda a based off running some stuff with setting all params to 1 and seeing what I could do there. 
@@ -347,7 +365,8 @@ exec(
     param_bifurcation='c',
     param_range=[0.1, 1.0, 300],
     total_time=300,
-    fire=True,
+    fire=False,
+    legacy=True,
     comments='''
         COOL!
         param_p is a driver for ossicilations? There's osscillations that's for sure. It's like weird square like shapes. Cool to share.
@@ -366,41 +385,20 @@ exec(
         'e_sw': 1.0,
         'e_sm': 1.0,
         'F_threshold': 0.5,
+        'K': 1.0,
         'q': 0.5,
-        'pw': 0.5,
-        'c': 0.5
+        'r': 1.0,
+        'pw0': 0.5,
+        'pw1': 0.5,
+        'c0': 0.5,
+        'c1': 0.5
     },
     init_vals=[0.5, 0.5, 0.5, 0.5], # [S, E, F, FP]
     param_bifurcation='q',
     param_range=[0.1, 1.0, 300],
     total_time=1000,
-    fire=False,
-    comments='''
-        current test
-    '''
-)
-
-exec(
-    params={
-        'gamma_m': 1.0,
-        'gamma_f': 1.0,
-        'gamma_s': 1.0,
-        'gamma_e': 1.0,
-        'gamma_p': 1.0,
-        'gamma_fp': 1.0,
-        'e_d': 1.0,
-        'e_sw': 1.0,
-        'e_sm': 1.0,
-        'F_threshold': 0.5,
-        'q': 0.5,
-        'pw': 0.5,
-        'c': 0.5
-    },
-    init_vals=[0.5, 0.5, 0.5, 0.5], # [S, E, F, FP]
-    param_bifurcation='q',
-    param_range=[0.1, 1.0, 300],
-    total_time=1000,
-    fire=False,
+    fire=True,
+    legacy=False,
     comments='''
         current test
     '''
