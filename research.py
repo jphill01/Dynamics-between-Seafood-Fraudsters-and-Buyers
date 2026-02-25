@@ -205,35 +205,27 @@ def bifurcation(ax, params, param_name, param_linspace, time, y_state_var):
     ax.set_ylim([0, 1.1])
     ax.grid(True, alpha=0.3)
 def stability_analysis(params):
-    def equations_to_zero(x):
+    def equations_to_zero(x, p):
         """
         For fixed points, we want X_{t+1} - X_{t} = 0.
         """
         # Enforce non-negativity with absolute value for physical feasibility 
         # during solver steps (optional but helps stability)
         x_safe = np.abs(x) 
-        return system_map(x_safe, params) - x_safe
-
-    def compute_jacobian(func, x, epsilon=1e-6):
-        """
-        Computes the Jacobian matrix numerically using central differences.
-        J_ij = d(f_i)/d(x_j)
-        """
-        n = len(x)
-        J = np.zeros((n, n))
-        
-        for j in range(n):
-            perturb = np.zeros(n)
-            perturb[j] = epsilon
-            
-            # Central difference: (f(x+h) - f(x-h)) / 2h
-            f_plus = func(x + perturb, params)
-            f_minus = func(x - perturb, params)
-            
-            J[:, j] = (f_plus - f_minus) / (2 * epsilon)
-            
-        return J
-
+        return system_map(x_safe, p) - x_safe
+    
+    simulated_x = np.array([0.5, 26, 0.5, 0.5])
+    for _ in range(100):
+        simulated_x = system_map(simulated_x, params)
+    print(simulated_x)
+    res = least_squares(
+        equations_to_zero, 
+        simulated_x, 
+        args=(params,), 
+        bounds=(0, np.inf), 
+        method='trf'
+    )
+    print(res.x, res.message, res.success)
 def poincare(ax, params, initial_vals, time):
     seafood, effort, fraudsters, p_fraudsters = np.array([initial_vals[0]], dtype=np.longdouble), np.array([initial_vals[1]], dtype=np.longdouble), np.array([initial_vals[2]], dtype=np.longdouble), np.array([initial_vals[3]], dtype=np.longdouble)
     time_period = []
