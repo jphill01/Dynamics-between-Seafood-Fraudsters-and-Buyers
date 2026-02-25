@@ -4,7 +4,9 @@ import numbers
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import fsolve
+from scipy.optimize import least_squares
 from numpy.linalg import eigvals
+
 
 # import warnings
 # warnings.filterwarnings("ignore")
@@ -232,34 +234,6 @@ def stability_analysis(params):
             
         return J
 
-    print("--- 1. Finding Fixed Points ---")
-    # Find the root (Fixed Point) starting from init_vals
-    fixed_point_root = fsolve(equations_to_zero, init_vals)
-
-    # Validate the solution (Check if residuals are close to zero)
-    residuals = equations_to_zero(fixed_point_root)
-    print(f"Initial Guess: {init_vals}")
-    print(f"Fixed Point Found (S*, E*, F*, Fp*): {np.round(fixed_point_root, 4)}")
-    print(f"Residuals (should be ~0): {np.linalg.norm(residuals):.2e}")
-
-    print("\n--- 2. Jacobian Matrix at Fixed Point ---")
-    # Calculate Jacobian at the found fixed point
-    J = compute_jacobian(system_map, fixed_point_root)
-
-    # Formatting for cleaner output
-    np.set_printoptions(precision=4, suppress=True)
-    print(J)
-
-    print("\n--- 3. Eigenvalues & Stability ---")
-    evals = eigvals(J)
-    print(f"Eigenvalues: {evals}")
-
-    # Check stability (Discrete time: Magnitude < 1 implies stability)
-    magnitudes = np.abs(evals)
-    print(f"Magnitudes:  {magnitudes}")
-
-    is_stable = all(m < 1.0 for m in magnitudes)
-    print(f"\nSystem Stability at Fixed Point: {'STABLE' if is_stable else 'UNSTABLE'}")
 def poincare(ax, params, initial_vals, time):
     seafood, effort, fraudsters, p_fraudsters = np.array([initial_vals[0]], dtype=np.longdouble), np.array([initial_vals[1]], dtype=np.longdouble), np.array([initial_vals[2]], dtype=np.longdouble), np.array([initial_vals[3]], dtype=np.longdouble)
     time_period = []
@@ -273,15 +247,53 @@ def poincare(ax, params, initial_vals, time):
          
     # For seafood
     line_graph([seafood[:-1]], [seafood[1:]], ax, title=f"Poincare", y_label="Seafood + 1", x_label="Seafood", line_label=["Seafood"], line_color=["Blue"], y_lim=y_lim)
+def contour_plot(ax, params, initial_vals, time):
+    def root_func(x, p):
+        """The function we want to find the root for: G(x) - x = 0"""
+        return system_map(x, p) - x
+    def get_numerical_jacobian(func, x, p, epsilon=1e-8):
+        """Approximates the Jacobian matrix using finite differences."""
+        n = len(x)
+        J = np.zeros((n, n))
+        f0 = func(x, p)
+        for i in range(n):
+            x_eps = np.copy(x)
+            x_eps[i] += epsilon
+            f_eps = func(x_eps, p)
+            J[:, i] = (f_eps - f0) / epsilon
+        return J
 
+    resolution = 2
+    pw1_vals = np.linspace(0.01, 1, resolution)
+    c1_vals = np.linspace(0.01, 0.17, resolution)
+    
+    stability_map = np.zeros((resolution, resolution))
+    
+    current_guess = np.array([0.5, 26, 0.5, 0.5])
+    
+    p = params
+    simulated_x = np.array([0.5, 26, 0.5, 0.5])
+    for _ in range(100):
+        simulated_x = system_map(simulated_x, p)
+    print(simulated_x)
+    res = least_squares(
+        root_func, 
+        simulated_x, 
+        args=(p,), 
+        bounds=(0, np.inf), 
+        method='trf'
+    )
+    print(res.x, res.message, res.success)
+    
 # Initial starting values 
 init_vals = [0.5, 0.5, 0.2, 0.5]
 total_time = 50
 
 fig, axs = plt.subplots(3, 2, figsize=(15, 15))
+y_lim = [0, 1.1]
 y_lim = None
 
-def exec(params, init_vals, param_bifurcation, param_range, total_time, **kwargs):
+def exec(params, init_vals, total_time, **kwargs):
     if not kwargs['fire']:
         return
     # Converts old params into non-dimensionalized params
@@ -301,13 +313,19 @@ def exec(params, init_vals, param_bifurcation, param_range, total_time, **kwargs
             'c': params['c1'] / params['c0'],                                   # C1/C0
         }
         params = new_params
+    
+    
     time_series(axs[0][0], params, init_vals, total_time)
     poincare(axs[0][1], params, init_vals, total_time)
-    bifurcation(axs[1][0], params, param_bifurcation, param_range, total_time, 'fraudsters')
-    bifurcation(axs[1][1], params, param_bifurcation, param_range, total_time, 'p_fraudsters')
-    bifurcation(axs[2][0], params, param_bifurcation, param_range, total_time, 'effort')
-    bifurcation(axs[2][1], params, param_bifurcation, param_range, total_time, 'seafood')
-    plt.show()
+    
+    if ('param_bifurcation' in kwargs and 'param_range' in kwargs):
+        bifurcation(axs[1][0], params, kwargs['param_bifurcation'], kwargs['param_range'], total_time, 'fraudsters')
+        bifurcation(axs[1][1], params, kwargs['param_bifurcation'], kwargs['param_range'], total_time, 'p_fraudsters')
+        bifurcation(axs[2][0], params, kwargs['param_bifurcation'], kwargs['param_range'], total_time, 'effort')
+        bifurcation(axs[2][1], params, kwargs['param_bifurcation'], kwargs['param_range'], total_time, 'seafood')
+    
+    
+    # plt.show()
     stability_analysis(params)
 
  
@@ -384,23 +402,29 @@ exec(
         'e_d': 1.0,
         'e_sw': 1.0,
         'e_sm': 1.0,
-        'F_threshold': 0.5,
         'K': 1.0,
-        'q': 0.5,
-        'r': 1.0,
-        'pw0': 0.5,
-        'pw1': 0.5,
-        'c0': 0.5,
-        'c1': 0.5
+        
+        'F_threshold': 0.5,
+        'q': 1.0,
+        'r': 0.225,
+        'pw0': 1.0,
+        'c0': 0.17,
+        
+        'pw1': 0.01,
+        'c1': 0.001
     },
     init_vals=[0.5, 0.5, 0.5, 0.5], # [S, E, F, FP]
-    param_bifurcation='q',
-    param_range=[0.1, 1.0, 300],
-    total_time=1000,
+    # param_bifurcation='pw1',
+    # param_range=[0.01, 1.0, 300],
+    total_time=500,
     fire=True,
     legacy=False,
     comments='''
-        current test
+        PRE: I have a baseline parameter set (essentially) from Yodzis' PhD thesis.
+        The only thing that wasn't covered was Pw1 and C1. 
+        This is assuming that all elasticities and gammas are one, and F_threshold is some arbitrary number like 0.5.
+        
+        The question now is what should Pw1 and C1 be?
     '''
 )
 
