@@ -315,10 +315,10 @@ def contour_plot(ax, params, initial_vals, x_param, y_param, x_range, y_range, r
     cmap = ListedColormap(['blue', 'red', 'black'])
 
     x_grid, y_grid = np.meshgrid(x_vals, y_vals)
-    plt.pcolormesh(x_grid, y_grid, stability_map, cmap=cmap, vmin=0.5, vmax=3.5, shading='auto')
+    ax.pcolormesh(x_grid, y_grid, stability_map, cmap=cmap, vmin=0.5, vmax=3.5, shading='auto')
 
-    plt.colorbar(ticks=[1.0, 2.0, 3.0], 
-                format=plt.FuncFormatter(lambda val, loc: ['Stable', 'Unstable', "Unknown"][int(val-1)]))
+    # ax.colorbar(ticks=[1.0, 2.0, 3.0], 
+    #             format=plt.FuncFormatter(lambda val, loc: ['Stable', 'Unstable', "Unknown"][int(val-1)]))
 
     ax.set_title('Jacobian Eigenvalue Stability Map', fontsize=14)
     ax.set_xlabel(x_param, fontsize=12)
@@ -355,7 +355,7 @@ def exec(params, init_vals, total_time, **kwargs):
 # contour_plot(
 #     ax=axs[0][0], 
 #     params={
-#         'gamma_m': 1.0,
+#         'gamma_m': 1,
 #         'gamma_f': 1.0,
 #         'gamma_s': 1.0,
 #         'gamma_e': 1.0,
@@ -380,14 +380,178 @@ def exec(params, init_vals, total_time, **kwargs):
 #     y_param='c1', 
 #     x_range=[0.01, 1.0], 
 #     y_range=[0.01, 1.0],
-#     resolution=300, 
-#     time=500
+#     resolution=100, 
+#     time=100
+# )
+# contour_plot(
+#     ax=axs[0][1], 
+#     params={
+#         'gamma_m': 2,
+#         'gamma_f': 1.0,
+#         'gamma_s': 1.0,
+#         'gamma_e': 1.0,
+#         'gamma_p': 1.0,
+#         'gamma_fp': 1.0,
+#         'e_d': 1.0,
+#         'e_sw': 1.0,
+#         'e_sm': 1.0,
+#         'K': 1.0,
+        
+#         'F_threshold': 0.5,
+#         'q': 0.07,
+#         'r': 0.225,
+#         'pw0': 1.0,
+#         'c0': 0.9,
+        
+#         'pw1': 0.9,
+#         'c1': 0.0425
+#     }, 
+#     initial_vals=np.array([0.5, 0.5, 0.5, 0.5]), 
+#     x_param='pw1', 
+#     y_param='c1', 
+#     x_range=[0.01, 1.0], 
+#     y_range=[0.01, 1.0],
+#     resolution=100, 
+#     time=100
+# )
+# contour_plot(
+#     ax=axs[1][0], 
+#     params={
+#         'gamma_m': 3,
+#         'gamma_f': 1.0,
+#         'gamma_s': 1.0,
+#         'gamma_e': 1.0,
+#         'gamma_p': 1.0,
+#         'gamma_fp': 1.0,
+#         'e_d': 1.0,
+#         'e_sw': 1.0,
+#         'e_sm': 1.0,
+#         'K': 1.0,
+        
+#         'F_threshold': 0.5,
+#         'q': 0.07,
+#         'r': 0.225,
+#         'pw0': 1.0,
+#         'c0': 0.9,
+        
+#         'pw1': 0.9,
+#         'c1': 0.0425
+#     }, 
+#     initial_vals=np.array([0.5, 0.5, 0.5, 0.5]), 
+#     x_param='pw1', 
+#     y_param='c1', 
+#     x_range=[0.01, 1.0], 
+#     y_range=[0.01, 1.0],
+#     resolution=100, 
+#     time=100
+# )
+# contour_plot(
+#     ax=axs[1][1], 
+#     params={
+#         'gamma_m': 4,
+#         'gamma_f': 1.0,
+#         'gamma_s': 1.0,
+#         'gamma_e': 1.0,
+#         'gamma_p': 1.0,
+#         'gamma_fp': 1.0,
+#         'e_d': 1.0,
+#         'e_sw': 1.0,
+#         'e_sm': 1.0,
+#         'K': 1.0,
+        
+#         'F_threshold': 0.5,
+#         'q': 0.07,
+#         'r': 0.225,
+#         'pw0': 1.0,
+#         'c0': 0.9,
+        
+#         'pw1': 0.9,
+#         'c1': 0.0425
+#     }, 
+#     initial_vals=np.array([0.5, 0.5, 0.5, 0.5]), 
+#     x_param='pw1', 
+#     y_param='c1', 
+#     x_range=[0.01, 1.0], 
+#     y_range=[0.01, 1.0],
+#     resolution=100, 
+#     time=100
+# )
+# contour_plot(
+#     ax=axs[2][0], 
+#     params={
+#         'gamma_m': 5,
+#         'gamma_f': 1.0,
+#         'gamma_s': 1.0,
+#         'gamma_e': 1.0,
+#         'gamma_p': 1.0,
+#         'gamma_fp': 1.0,
+#         'e_d': 1.0,
+#         'e_sw': 1.0,
+#         'e_sm': 1.0,
+#         'K': 1.0,
+        
+#         'F_threshold': 0.5,
+#         'q': 0.07,
+#         'r': 0.225,
+#         'pw0': 1.0,
+#         'c0': 0.9,
+        
+#         'pw1': 0.9,
+#         'c1': 0.0425
+#     }, 
+#     initial_vals=np.array([0.5, 0.5, 0.5, 0.5]), 
+#     x_param='pw1', 
+#     y_param='c1', 
+#     x_range=[0.01, 1.0], 
+#     y_range=[0.01, 1.0],
+#     resolution=100, 
+#     time=100
+# )
+# contour_plot(
+#     ax=axs[2][1], 
+#     params={
+#         'gamma_m': 6,
+#         'gamma_f': 1.0,
+#         'gamma_s': 1.0,
+#         'gamma_e': 1.0,
+#         'gamma_p': 1.0,
+#         'gamma_fp': 1.0,
+#         'e_d': 1.0,
+#         'e_sw': 1.0,
+#         'e_sm': 1.0,
+#         'K': 1.0,
+        
+#         'F_threshold': 0.5,
+#         'q': 0.07,
+#         'r': 0.225,
+#         'pw0': 1.0,
+#         'c0': 0.9,
+        
+#         'pw1': 0.9,
+#         'c1': 0.0425
+#     }, 
+#     initial_vals=np.array([0.5, 0.5, 0.5, 0.5]), 
+#     x_param='pw1', 
+#     y_param='c1', 
+#     x_range=[0.01, 1.0], 
+#     y_range=[0.01, 1.0],
+#     resolution=100, 
+#     time=100
 # )
 # plt.show()
 
+
+
+
+
+
+
+
+
+
 exec(
     params={
-        'gamma_m': 25.0,
+        'gamma_m': 23,
         'gamma_f': 1.0,
         'gamma_s': 1.0,
         'gamma_e': 1.0,
@@ -410,13 +574,14 @@ exec(
     init_vals=[0.5, 0.5, 0.5, 0.1], # [S, E, F, FP]
     # param_bifurcation='gamma_m',
     # param_range=[0.01, 6.0, 600],
-    total_time=300,
-    fire=True,
+    total_time=500,
+    fire=False,
     legacy=False,
     comments='''
         PRE: See how hard we could blast gamma_m
         
-        POST: WOAHHHHHHH
+        POST: WOAHHHHHHH. gamma_m at 23 seems to be quite numerically stable compared to values such as 20 and 25.
+        This is baseline for now.  
     '''
 )
 
