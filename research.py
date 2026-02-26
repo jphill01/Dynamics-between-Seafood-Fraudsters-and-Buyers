@@ -37,7 +37,14 @@ def p_fraudster_state(F, Fp, F_threshold):
     exp_delta_fp = np.exp(delta_fp)
     
     return (Fp * exp_delta_fp) / (1 + Fp * (exp_delta_fp - 1))
-
+def market_and_wholesale_price(S, E, F, Fp, e_sm, e_sw, e_d, gamma_m, gamma_p, pw):
+    denom_market = (E * S)**(e_sm/2) + bump
+    price_market = gamma_m * ((1 - Fp)**(e_d/2) / denom_market)
+    
+    denom_wholesale = (gamma_p * E * S)**(e_sw) + bump
+    price_wholesale = (F * (pw - 1) + 1) / denom_wholesale
+    
+    return [price_market, price_wholesale]
 def non_dim_params(params):
     return {
         'gamma_m': params['gamma_m'] / (params['pw0'] * (params['r'] * params['K']) ** (params['e_sm'] / 2.0)),
@@ -144,9 +151,12 @@ def system_map(state, params):
     Fp_new = p_fraudster_state(F, FP, F_threshold)
     return np.array([S_new, E_new, F_new, Fp_new])
 
-def time_series(ax, params, initial_vals, time):
-    print(params)
+def time_series(ax, params, initial_vals, time, include_market=False): 
     seafood, effort, fraudsters, p_fraudsters = np.array([initial_vals[0]], dtype=np.longdouble), np.array([initial_vals[1]], dtype=np.longdouble), np.array([initial_vals[2]], dtype=np.longdouble), np.array([initial_vals[3]], dtype=np.longdouble)
+    buf = market_and_wholesale_price(initial_vals[0], initial_vals[1], initial_vals[2], initial_vals[3], params['e_sm'], params['e_sw'], params['e_d'], params['gamma_m'], params['gamma_p'], params['pw'])
+    market_price = np.array([buf[0]], dtype=np.float128)
+    wholesale_price = np.array([buf[1]], dtype=np.float128)
+    
     time_period = []
     for i in range(time):
         time_period.append(i)
@@ -154,9 +164,15 @@ def time_series(ax, params, initial_vals, time):
         effort = np.append(effort, effort_state(effort[i], seafood[i], fraudsters[i], params['q'], params['pw'], params['c'], params['e_sw'], params['gamma_p'], params['gamma_e']))
         fraudsters = np.append(fraudsters, fraudster_state(seafood[i], effort[i], fraudsters[i], p_fraudsters[i], params['gamma_f'], params['gamma_m'], params['gamma_p'], params['pw'], params['e_sw'], params['e_sm'], params['e_d']))
         p_fraudsters = np.append(p_fraudsters, p_fraudster_state(fraudsters[i], p_fraudsters[i], params['F_threshold']))
+        buf = market_and_wholesale_price(seafood[i], effort[i], fraudsters[i], p_fraudsters[i], params['e_sm'], params['e_sw'], params['e_d'], params['gamma_m'], params['gamma_p'], params['pw'])
+        market_price = np.append(market_price, buf[0])
+        wholesale_price = np.append(wholesale_price, buf[1])
     time_period.append(time)
-                
-    line_graph([time_period, time_period, time_period, time_period], [seafood, effort, fraudsters, p_fraudsters], ax, title=f"Time Series", y_label="Levels", x_label="Time (t)", line_label=["Seafood", "Effort", "Fraudsters", "Perceived Fraudsters"], line_color=["Blue", "green", "red", "pink"], y_lim=y_lim)
+    
+    if include_market:
+        line_graph([time_period, time_period, time_period, time_period, time_period, time_period], [seafood, effort, fraudsters, p_fraudsters, market_price, wholesale_price], ax, title=f"Time Series", y_label="Levels", x_label="Time (t)", line_label=["Seafood", "Effort", "Fraudsters", "Perceived Fraudsters", "Market Price", "Wholesale Price"], line_color=["Blue", "green", "red", "pink", "orange", "yellow"], y_lim=y_lim)
+    else:
+        line_graph([time_period, time_period, time_period, time_period], [seafood, effort, fraudsters, p_fraudsters], ax, title=f"Time Series", y_label="Levels", x_label="Time (t)", line_label=["Seafood", "Effort", "Fraudsters", "Perceived Fraudsters"], line_color=["Blue", "green", "red", "pink"], y_lim=y_lim)
 def bifurcation(ax, params, param_name, param_linspace, time, y_state_var):
     bifurcation_transient = int(time - (0.25 * time))
     
@@ -227,7 +243,6 @@ def stability_analysis(params, initial_vals):
         # during solver steps (optional but helps stability)
         x_safe = np.abs(x) 
         return system_map(x_safe, p) - x_safe   
-    
     def get_numerical_jacobian(func, x, p, epsilon=1e-8):
         """Approximates the Jacobian matrix using finite differences."""
         n = len(x)
@@ -275,7 +290,6 @@ def contour_plot(ax, params, initial_vals, x_param, y_param, x_range, y_range, r
     non_dim_p = non_dim_params(params)
     x_vals = np.linspace(x_range[0], x_range[1], resolution)
     y_vals = np.linspace(y_range[0], y_range[1], resolution)
-    print(x_vals, y_vals)
 
     stability_map = np.zeros((resolution, resolution))
 
@@ -319,12 +333,12 @@ y_lim = [0, 1.1]
 y_lim = None
 
 def exec(params, init_vals, total_time, **kwargs):
-    if not kwargs['fire'] and kwargs['legacy']:
+    if not kwargs['fire'] or kwargs['legacy']:
         return
 
     time_series(axs[0][0], non_dim_params(params), init_vals, total_time)
-    poincare(axs[0][1], non_dim_params(params), init_vals, total_time)
-    
+    # poincare(axs[0][1], non_dim_params(params), init_vals, total_time)
+    time_series(axs[0][1], non_dim_params(params), init_vals, total_time, True)
     res = stability_analysis(non_dim_params(params), init_vals)
     print(f"FIXED POINT: {res['fixed_point']}")
     print(f"Max Eigenvalue Magnitude: {res['max_eigenvalue_mag']}")
@@ -373,7 +387,77 @@ def exec(params, init_vals, total_time, **kwargs):
 
 exec(
     params={
-        'gamma_m': 4.0,
+        'gamma_m': 25.0,
+        'gamma_f': 1.0,
+        'gamma_s': 1.0,
+        'gamma_e': 1.0,
+        'gamma_p': 1.0,
+        'gamma_fp': 1.0,
+        'e_d': 1.0,
+        'e_sw': 1.0,
+        'e_sm': 1.0,
+        'K': 1.0,
+        
+        'F_threshold': 0.5,
+        'q': 0.07,
+        'r': 0.225,
+        'pw0': 1.0,
+        'c0': 0.9,
+        
+        'pw1': 0.81,
+        'c1': 0.153
+    },
+    init_vals=[0.5, 0.5, 0.5, 0.1], # [S, E, F, FP]
+    # param_bifurcation='gamma_m',
+    # param_range=[0.01, 6.0, 600],
+    total_time=300,
+    fire=True,
+    legacy=False,
+    comments='''
+        PRE: See how hard we could blast gamma_m
+        
+        POST: WOAHHHHHHH
+    '''
+)
+
+exec(
+    params={
+        'gamma_m': 2.0,
+        'gamma_f': 1.0,
+        'gamma_s': 1.0,
+        'gamma_e': 1.0,
+        'gamma_p': 1.0,
+        'gamma_fp': 1.0,
+        'e_d': 1.0,
+        'e_sw': 1.0,
+        'e_sm': 1.0,
+        'K': 1.0,
+        
+        'F_threshold': 0.5,
+        'q': 0.07,
+        'r': 0.225,
+        'pw0': 1.0,
+        'c0': 0.9,
+        
+        'pw1': 0.81,
+        'c1': 0.153
+    },
+    init_vals=[0.5, 0.5, 0.5, 0.1], # [S, E, F, FP]
+    param_bifurcation='gamma_m',
+    param_range=[0.01, 6.0, 600],
+    total_time=100,
+    fire=False,
+    legacy=False,
+    comments='''
+        PRE: Seems like google thinks that I should set pw0=1 and pw1=0.81, and c0=0.9 and c1=0.153
+        
+        POST: Cool bifurcation diagrams but that's really it
+    '''
+)
+
+exec(
+    params={
+        'gamma_m': 1.0,
         'gamma_f': 1.0,
         'gamma_s': 1.0,
         'gamma_e': 1.0,
@@ -397,25 +481,15 @@ exec(
     param_bifurcation='gamma_m',
     param_range=[3.01, 6.0, 300],
     total_time=500,
-    fire=True,
+    fire=False,
     legacy=False,
     comments='''
         PRE: I'll raise gamma_m and see what's up. 
-        
-        POST: 
+         
+        POST: ok so it really does nothing until around 4.5, where I think it has some numerical instability. 
     '''
 )
  
-
-
-
-
-
-
-
-
-
-
 exec(
     params={
         'gamma_m': 1.0,
