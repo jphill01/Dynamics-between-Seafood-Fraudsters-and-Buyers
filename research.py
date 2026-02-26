@@ -3,15 +3,15 @@
 import numbers
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.optimize import fsolve
 from scipy.optimize import least_squares
 from numpy.linalg import eigvals
+from matplotlib.colors import ListedColormap
 
 
 # import warnings
 # warnings.filterwarnings("ignore")
-bump = 1e-9
-bump = 0
+bump = 1e-8
+# bump = 0
 legacy_gamma_fp = 1.0
 seafood_state = lambda S, E, gamma_s: S * np.exp(gamma_s * (1 - S - E))
 def effort_state(E, S, F, q, pw, c, e_sw, gamma_p, gamma_e): 
@@ -204,7 +204,7 @@ def bifurcation(ax, params, param_name, param_linspace, time, y_state_var):
     ax.set_ylabel(y_state_var)
     ax.set_ylim([0, 1.1])
     ax.grid(True, alpha=0.3)
-def stability_analysis(params):
+def stability_analysis(params, initial_vals):
     def equations_to_zero(x, p):
         """
         For fixed points, we want X_{t+1} - X_{t} = 0.
@@ -212,20 +212,51 @@ def stability_analysis(params):
         # Enforce non-negativity with absolute value for physical feasibility 
         # during solver steps (optional but helps stability)
         x_safe = np.abs(x) 
-        return system_map(x_safe, p) - x_safe
+        return system_map(x_safe, p) - x_safe   
     
-    simulated_x = np.array([0.5, 26, 0.5, 0.5])
-    for _ in range(100):
-        simulated_x = system_map(simulated_x, params)
-    print(simulated_x)
-    res = least_squares(
-        equations_to_zero, 
-        simulated_x, 
-        args=(params,), 
-        bounds=(0, np.inf), 
-        method='trf'
-    )
-    print(res.x, res.message, res.success)
+    def get_numerical_jacobian(func, x, p, epsilon=1e-8):
+        """Approximates the Jacobian matrix using finite differences."""
+        n = len(x)
+        J = np.zeros((n, n), dtype=np.float128)
+        f0 = func(x, p)
+        for i in range(n):
+            x_eps = np.copy(x)
+            x_eps[i] += epsilon
+            f_eps = func(x_eps, p)
+            J[:, i] = (f_eps - f0) / epsilon
+        return J
+    
+    try:
+        simulated_x = np.array([0.5, 0.5, 0.5, 0.5])
+        for _ in range(100):
+            simulated_x = system_map(simulated_x, params)
+    except:
+        print('whats going on')
+        print(simulated_x)
+    
+    # Get fixed point 
+    try:
+        res = least_squares(
+            equations_to_zero, 
+            initial_vals, 
+            args=(params,), 
+            bounds=(0, np.inf), 
+            method='trf'
+        )
+        fixed_point = np.array(res.x, dtype=np.float128)
+    except:
+        print(f"erm...")
+        fixed_point = np.array([0, 0, 0, 0], dtype=np.float128)
+        
+    J = np.array(get_numerical_jacobian(func=system_map, x=fixed_point, p=params), dtype=np.float64)
+    eigenvalues = eigvals(J)
+    max_eigenvalue_mag = np.max(np.abs(eigenvalues))
+    
+    return {
+        "fixed_point": fixed_point,
+        "jacobian": J,
+        "max_eigenvalue_mag": max_eigenvalue_mag
+    }
 def poincare(ax, params, initial_vals, time):
     seafood, effort, fraudsters, p_fraudsters = np.array([initial_vals[0]], dtype=np.longdouble), np.array([initial_vals[1]], dtype=np.longdouble), np.array([initial_vals[2]], dtype=np.longdouble), np.array([initial_vals[3]], dtype=np.longdouble)
     time_period = []
@@ -239,43 +270,52 @@ def poincare(ax, params, initial_vals, time):
          
     # For seafood
     line_graph([seafood[:-1]], [seafood[1:]], ax, title=f"Poincare", y_label="Seafood + 1", x_label="Seafood", line_label=["Seafood"], line_color=["Blue"], y_lim=y_lim)
-def contour_plot(ax, params, initial_vals, time):
-    def root_func(x, p):
-        """The function we want to find the root for: G(x) - x = 0"""
-        return system_map(x, p) - x
-    def get_numerical_jacobian(func, x, p, epsilon=1e-8):
-        """Approximates the Jacobian matrix using finite differences."""
-        n = len(x)
-        J = np.zeros((n, n))
-        f0 = func(x, p)
-        for i in range(n):
-            x_eps = np.copy(x)
-            x_eps[i] += epsilon
-            f_eps = func(x_eps, p)
-            J[:, i] = (f_eps - f0) / epsilon
-        return J
+def contour_plot(ax, params, initial_vals, x_param, y_param, x_range, y_range, resolution, time):
+    non_dim_p = {
+        'gamma_m': params['gamma_m'] / (params['pw0'] * (params['r'] * params['K']) ** (params['e_sm'] / 2.0)),
+        'gamma_f': params['gamma_f'] * params['pw0'],
+        'gamma_s': params['gamma_s'] * params['r'],
+        'gamma_e': params['gamma_e'] * params['c0'],
+        'gamma_p': params['gamma_p'] * params['r'] * params['K'],
+        'e_sm': params['e_sm'], 'e_sw': params['e_sw'], 'e_d': params['e_d'],
+        'F_threshold': params['F_threshold'], 'legacy_gamma_fp': params['gamma_fp'],
+        'q': (params['q'] * params['pw0'] * params['K']) / params['c0'],
+        'pw': 1.0,
+        'c': 1.0
+    }
+    
+    x_vals = np.linspace(x_range[0], x_range[1], resolution)
+    y_vals = np.linspace(y_range[0], y_range[1], resolution)
 
-    resolution = 2
-    pw1_vals = np.linspace(0.01, 1, resolution)
-    c1_vals = np.linspace(0.01, 0.17, resolution)
-    
     stability_map = np.zeros((resolution, resolution))
-    
-    current_guess = np.array([0.5, 26, 0.5, 0.5])
-    
-    p = params
-    simulated_x = np.array([0.5, 26, 0.5, 0.5])
-    for _ in range(100):
-        simulated_x = system_map(simulated_x, p)
-    print(simulated_x)
-    res = least_squares(
-        root_func, 
-        simulated_x, 
-        args=(p,), 
-        bounds=(0, np.inf), 
-        method='trf'
-    )
-    print(res.x, res.message, res.success)
+
+    for i, x in enumerate(x_vals):
+        for j, y in enumerate(y_vals):
+            # Update dynamic parameters
+            p = non_dim_p.copy()
+            
+            '''THIS IS HARD CODED!!!!!!!!'''
+            p['pw'] = x / params['pw0']
+            p['c'] = y / params['c0']
+            
+            ret_val = stability_analysis(p, [0.5, 0.5, 0.5, 0.5])
+            if ret_val['max_eigenvalue_mag'] < 1.0:
+                stability_map[i, j] = 1  # Stable
+            else:
+                stability_map[i, j] = 2  # Unstable (Oscillatory/Chaotic)
+
+    # Same colormap: Extinct (Black), Stable (Blue), Unstable (Orange), Divergent/No Root (Red)
+    cmap = ListedColormap(['red', 'blue'])
+
+    x_grid, y_grid = np.meshgrid(x_vals, y_vals)
+    plt.pcolormesh(x_grid, y_grid, stability_map, cmap=cmap, shading='auto')
+
+    plt.colorbar(ticks=[1.0], 
+                format=plt.FuncFormatter(lambda val, loc: ['Stable', 'Unstable'][int(val)]))
+
+    ax.set_title('Jacobian Eigenvalue Stability Map', fontsize=14)
+    ax.set_xlabel(x_param, fontsize=12)
+    ax.set_ylabel(y_param, fontsize=12)
     
 # Initial starting values 
 init_vals = [0.5, 0.5, 0.2, 0.5]
@@ -310,6 +350,9 @@ def exec(params, init_vals, total_time, **kwargs):
     time_series(axs[0][0], params, init_vals, total_time)
     poincare(axs[0][1], params, init_vals, total_time)
     
+    stability_analysis(params)
+    
+    
     if ('param_bifurcation' in kwargs and 'param_range' in kwargs):
         bifurcation(axs[1][0], params, kwargs['param_bifurcation'], kwargs['param_range'], total_time, 'fraudsters')
         bifurcation(axs[1][1], params, kwargs['param_bifurcation'], kwargs['param_range'], total_time, 'p_fraudsters')
@@ -317,9 +360,73 @@ def exec(params, init_vals, total_time, **kwargs):
         bifurcation(axs[2][1], params, kwargs['param_bifurcation'], kwargs['param_range'], total_time, 'seafood')
     
     
-    # plt.show()
-    stability_analysis(params)
+    plt.show()
 
+contour_plot(
+    ax=axs[1][0], 
+    params={
+        'gamma_m': 1.0,
+        'gamma_f': 1.0,
+        'gamma_s': 1.0,
+        'gamma_e': 1.0,
+        'gamma_p': 1.0,
+        'gamma_fp': 1.0,
+        'e_d': 1.0,
+        'e_sw': 1.0,
+        'e_sm': 1.0,
+        'K': 1.0,
+        
+        'F_threshold': 0.5,
+        'q': 1.0,
+        'r': 0.225,
+        'pw0': 1.0,
+        'c0': 0.17,
+        
+        'pw1': 0.9,
+        'c1': 0.0425
+    }, 
+    initial_vals=np.array([0.5, 0.5, 0.5, 0.5]), 
+    x_param='', 
+    y_param='', 
+    x_range=[0.01, 1.0], 
+    y_range=[0.01, 1.0],
+    resolution=10, 
+    time=100
+)
+# plt.show()
+
+exec(
+    params={
+        'gamma_m': 1.0,
+        'gamma_f': 1.0,
+        'gamma_s': 1.0,
+        'gamma_e': 1.0,
+        'gamma_p': 1.0,
+        'gamma_fp': 1.0,
+        'e_d': 1.0,
+        'e_sw': 1.0,
+        'e_sm': 1.0,
+        'K': 1.0,
+        
+        'F_threshold': 0.5,
+        'q': 1.0,
+        'r': 0.225,
+        'pw0': 1.0,
+        'c0': 0.17,
+        
+        'pw1': 0.9,
+        'c1': 0.0425
+    },
+    init_vals=[0.5, 0.5, 0.5, 0.5], # [S, E, F, FP]
+    # param_bifurcation='pw1',
+    # param_range=[0.01, 1.0, 300],
+    total_time=500,
+    fire=False,
+    legacy=False,
+    comments='''
+        PRE: idrk it's instincts
+    '''
+)
  
 exec(
     params={
@@ -409,7 +516,7 @@ exec(
     # param_bifurcation='pw1',
     # param_range=[0.01, 1.0, 300],
     total_time=500,
-    fire=True,
+    fire=False,
     legacy=False,
     comments='''
         PRE: I have a baseline parameter set (essentially) from Yodzis' PhD thesis.
@@ -419,6 +526,3 @@ exec(
         The question now is what should Pw1 and C1 be?
     '''
 )
-
-
-
