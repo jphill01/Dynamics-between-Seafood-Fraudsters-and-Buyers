@@ -10,7 +10,7 @@ from matplotlib.colors import ListedColormap
 
 # import warnings
 # warnings.filterwarnings("ignore")
-# bump = 1e-8
+bump = 1e-9
 bump = 0
 legacy_gamma_fp = 1.0
 seafood_state = lambda S, E, gamma_s: S * np.exp(gamma_s * (1 - S - E))
@@ -262,10 +262,13 @@ def stability_analysis(params, initial_vals):
         bounds=(0, np.inf), 
         method='trf'
     )
+    # Newton's method instead of least squares?
+    # Forward difference?
     fixed_point = np.array(res.x, dtype=np.float128)
         
     J = np.array(get_numerical_jacobian(func=system_map, x=fixed_point, p=params), dtype=np.float64)
     eigenvalues = eigvals(J)
+    print(f"Eigenvalues: {eigenvalues}")
     max_eigenvalue_mag = np.max(np.abs(eigenvalues))
     
     return {
@@ -544,10 +547,73 @@ def exec(params, init_vals, total_time, **kwargs):
 
 
 
+exec(
+    params={
+        'gamma_m': 10.0,
+        'gamma_f': 1.0,
+        'gamma_s': 1.0,
+        'gamma_e': 2.0,
+        'gamma_p': 1.0,
+        'gamma_fp': 1.0,
+        'e_d': 1.0,
+        'e_sw': 1.0,
+        'e_sm': 1.0,
+        'K': 1.0,
+        
+        'F_threshold': 0.5,
+        'q': 0.07,
+        'r': 0.225,
+        'pw0': 1.0,
+        'c0': 0.9,
+        
+        'pw1': 0.81,
+        'c1': 0.85
+    },
+    init_vals=[0.5, 0.5, 0.5, 0.5], # [S, E, F, FP]
+    # param_bifurcation='gamma_m',
+    # param_range=[3.01, 6.0, 300],
+    total_time=1000,
+    fire=False,
+    legacy=False,
+    comments='''
+        PRE: eqwer
+    '''
+)
 
-
-
-
+exec(
+    params={
+        'gamma_m': 23,
+        'gamma_f': 1.0,
+        'gamma_s': 1.0,
+        'gamma_e': 1.0,
+        'gamma_p': 1.0,
+        'gamma_fp': 1.0,
+        'e_d': 0.05,
+        'e_sw': 1.0,
+        'e_sm': 1.0,
+        'K': 1.0,
+        
+        'F_threshold': 0.5,
+        'q': 0.07,
+        'r': 0.225,
+        'pw0': 1.0,
+        'c0': 0.9,
+        
+        'pw1': 0.81,
+        'c1': 0.153
+    },
+    init_vals=[0.6, 0.3, 0.5, 0.1], # [S, E, F, FP]
+    # param_bifurcation='gamma_m',
+    # param_range=[0.01, 6.0, 600],
+    total_time=1000,
+    fire=True,
+    legacy=False,
+    comments='''
+        PRE: Let's see how e_d being close to inelastic effects the plot
+        
+        POST: e_d being high increases cycles. e_d being low untagles oscillations
+    '''
+)
 
 exec(
     params={
