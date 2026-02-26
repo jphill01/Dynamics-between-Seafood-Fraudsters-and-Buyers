@@ -10,8 +10,8 @@ from matplotlib.colors import ListedColormap
 
 # import warnings
 # warnings.filterwarnings("ignore")
-bump = 1e-8
-# bump = 0
+# bump = 1e-8
+bump = 0
 legacy_gamma_fp = 1.0
 seafood_state = lambda S, E, gamma_s: S * np.exp(gamma_s * (1 - S - E))
 def effort_state(E, S, F, q, pw, c, e_sw, gamma_p, gamma_e): 
@@ -38,6 +38,19 @@ def p_fraudster_state(F, Fp, F_threshold):
     
     return (Fp * exp_delta_fp) / (1 + Fp * (exp_delta_fp - 1))
 
+def non_dim_params(params):
+    return {
+        'gamma_m': params['gamma_m'] / (params['pw0'] * (params['r'] * params['K']) ** (params['e_sm'] / 2.0)),
+        'gamma_f': params['gamma_f'] * params['pw0'],
+        'gamma_s': params['gamma_s'] * params['r'],
+        'gamma_e': params['gamma_e'] * params['c0'],
+        'gamma_p': params['gamma_p'] * params['r'] * params['K'],
+        'e_sm': params['e_sm'], 'e_sw': params['e_sw'], 'e_d': params['e_d'],
+        'F_threshold': params['F_threshold'], 'legacy_gamma_fp': params['gamma_fp'],
+        'q': (params['q'] * params['pw0'] * params['K']) / params['c0'],
+        'pw': params['pw1'] / params['pw0'],
+        'c': params['c1'] / params['c0'],
+    }
 def line_graph(x_series, y_series, ax, **kwargs):
     """
     Creates a line graph in 2-D or 3-D (optional)
@@ -108,7 +121,6 @@ def line_graph(x_series, y_series, ax, **kwargs):
 
 
     # Old parameters that are still relevant in the nondimensionalized system
-
 def system_map(state, params):
     S, E, F, FP = state
     # Unpack parameters dictionary for clarity
@@ -131,7 +143,9 @@ def system_map(state, params):
     F_new = fraudster_state(S, E, F, FP, gamma_f, gamma_m, gamma_p, pw, e_sw, e_sm, e_d)
     Fp_new = p_fraudster_state(F, FP, F_threshold)
     return np.array([S_new, E_new, F_new, Fp_new])
+
 def time_series(ax, params, initial_vals, time):
+    print(params)
     seafood, effort, fraudsters, p_fraudsters = np.array([initial_vals[0]], dtype=np.longdouble), np.array([initial_vals[1]], dtype=np.longdouble), np.array([initial_vals[2]], dtype=np.longdouble), np.array([initial_vals[3]], dtype=np.longdouble)
     time_period = []
     for i in range(time):
@@ -141,7 +155,7 @@ def time_series(ax, params, initial_vals, time):
         fraudsters = np.append(fraudsters, fraudster_state(seafood[i], effort[i], fraudsters[i], p_fraudsters[i], params['gamma_f'], params['gamma_m'], params['gamma_p'], params['pw'], params['e_sw'], params['e_sm'], params['e_d']))
         p_fraudsters = np.append(p_fraudsters, p_fraudster_state(fraudsters[i], p_fraudsters[i], params['F_threshold']))
     time_period.append(time)
-            
+                
     line_graph([time_period, time_period, time_period, time_period], [seafood, effort, fraudsters, p_fraudsters], ax, title=f"Time Series", y_label="Levels", x_label="Time (t)", line_label=["Seafood", "Effort", "Fraudsters", "Perceived Fraudsters"], line_color=["Blue", "green", "red", "pink"], y_lim=y_lim)
 def bifurcation(ax, params, param_name, param_linspace, time, y_state_var):
     bifurcation_transient = int(time - (0.25 * time))
@@ -188,9 +202,9 @@ def bifurcation(ax, params, param_name, param_linspace, time, y_state_var):
         # Update param
         current_params = params.copy()
         current_params[param_name] = val
-        
+                
         # Run
-        points = run_system(current_params)
+        points = run_system(non_dim_params(current_params))
         
         # Append to lists
         for p in points:
@@ -225,28 +239,15 @@ def stability_analysis(params, initial_vals):
             f_eps = func(x_eps, p)
             J[:, i] = (f_eps - f0) / epsilon
         return J
-    
-    try:
-        simulated_x = np.array([0.5, 0.5, 0.5, 0.5])
-        for _ in range(100):
-            simulated_x = system_map(simulated_x, params)
-    except:
-        print('whats going on')
-        print(simulated_x)
-    
-    # Get fixed point 
-    try:
-        res = least_squares(
-            equations_to_zero, 
-            initial_vals, 
-            args=(params,), 
-            bounds=(0, np.inf), 
-            method='trf'
-        )
-        fixed_point = np.array(res.x, dtype=np.float128)
-    except:
-        print(f"erm...")
-        fixed_point = np.array([0, 0, 0, 0], dtype=np.float128)
+        
+    res = least_squares(
+        equations_to_zero, 
+        initial_vals, 
+        args=(params,), 
+        bounds=(0, np.inf), 
+        method='trf'
+    )
+    fixed_point = np.array(res.x, dtype=np.float128)
         
     J = np.array(get_numerical_jacobian(func=system_map, x=fixed_point, p=params), dtype=np.float64)
     eigenvalues = eigvals(J)
@@ -271,21 +272,10 @@ def poincare(ax, params, initial_vals, time):
     # For seafood
     line_graph([seafood[:-1]], [seafood[1:]], ax, title=f"Poincare", y_label="Seafood + 1", x_label="Seafood", line_label=["Seafood"], line_color=["Blue"], y_lim=y_lim)
 def contour_plot(ax, params, initial_vals, x_param, y_param, x_range, y_range, resolution, time):
-    non_dim_p = {
-        'gamma_m': params['gamma_m'] / (params['pw0'] * (params['r'] * params['K']) ** (params['e_sm'] / 2.0)),
-        'gamma_f': params['gamma_f'] * params['pw0'],
-        'gamma_s': params['gamma_s'] * params['r'],
-        'gamma_e': params['gamma_e'] * params['c0'],
-        'gamma_p': params['gamma_p'] * params['r'] * params['K'],
-        'e_sm': params['e_sm'], 'e_sw': params['e_sw'], 'e_d': params['e_d'],
-        'F_threshold': params['F_threshold'], 'legacy_gamma_fp': params['gamma_fp'],
-        'q': (params['q'] * params['pw0'] * params['K']) / params['c0'],
-        'pw': 1.0,
-        'c': 1.0
-    }
-    
+    non_dim_p = non_dim_params(params)
     x_vals = np.linspace(x_range[0], x_range[1], resolution)
     y_vals = np.linspace(y_range[0], y_range[1], resolution)
+    print(x_vals, y_vals)
 
     stability_map = np.zeros((resolution, resolution))
 
@@ -297,21 +287,24 @@ def contour_plot(ax, params, initial_vals, x_param, y_param, x_range, y_range, r
             '''THIS IS HARD CODED!!!!!!!!'''
             p['pw'] = x / params['pw0']
             p['c'] = y / params['c0']
-            
-            ret_val = stability_analysis(p, [0.5, 0.5, 0.5, 0.5])
-            if ret_val['max_eigenvalue_mag'] < 1.0:
-                stability_map[i, j] = 1  # Stable
-            else:
-                stability_map[i, j] = 2  # Unstable (Oscillatory/Chaotic)
+            try:
+                ret_val = stability_analysis(p, [0.5, 0.5, 0.5, 0.5])
+                if ret_val['max_eigenvalue_mag'] < 1.0:
+                    stability_map[i, j] = 1  # Stable
+                else:
+                    stability_map[i, j] = 2  # Unstable (Oscillatory/Chaotic)
+            except:
+                stability_map[i, j] = 3  # Something went wrong
+        print(i)
 
     # Same colormap: Extinct (Black), Stable (Blue), Unstable (Orange), Divergent/No Root (Red)
-    cmap = ListedColormap(['red', 'blue'])
+    cmap = ListedColormap(['blue', 'red', 'black'])
 
     x_grid, y_grid = np.meshgrid(x_vals, y_vals)
-    plt.pcolormesh(x_grid, y_grid, stability_map, cmap=cmap, shading='auto')
+    plt.pcolormesh(x_grid, y_grid, stability_map, cmap=cmap, vmin=0.5, vmax=3.5, shading='auto')
 
-    plt.colorbar(ticks=[1.0], 
-                format=plt.FuncFormatter(lambda val, loc: ['Stable', 'Unstable'][int(val)]))
+    plt.colorbar(ticks=[1.0, 2.0, 3.0], 
+                format=plt.FuncFormatter(lambda val, loc: ['Stable', 'Unstable', "Unknown"][int(val-1)]))
 
     ax.set_title('Jacobian Eigenvalue Stability Map', fontsize=14)
     ax.set_xlabel(x_param, fontsize=12)
@@ -326,32 +319,15 @@ y_lim = [0, 1.1]
 y_lim = None
 
 def exec(params, init_vals, total_time, **kwargs):
-    if not kwargs['fire']:
+    if not kwargs['fire'] and kwargs['legacy']:
         return
-    # Converts old params into non-dimensionalized params
-    if not kwargs['legacy']: 
-        new_params = {
-            'gamma_m': params['gamma_m']  / (params['pw0'] * (params['r'] * params['K']) ** (params['e_sm'] / 2.0)),  # gamma_m / (Pw0 * (r * K)^(e_sm / 2)
-            'gamma_f': params['gamma_f'] * params['pw0'],                   # gamma_f * Pw0
-            'gamma_s': params['gamma_s'] * params['r'],                     # gamma_s * r
-            'gamma_e': params['gamma_e'] * params['c0'],                    # gamma_e * C0
-            'gamma_p': params['gamma_p'] * params['r'] * params['K'],       # gamma_p * r * K
-            'e_sm': params['e_sm'],
-            'e_sw': params['e_sw'],
-            'e_d': params['e_d'],
-            'F_threshold': params['F_threshold'],
-            'q': (params['q'] * params['pw0'] * params['K']) / params['c0'],    # (q * Pw0 * K) / C0
-            'pw': params['pw1'] / params['pw0'],                                # Pw1/Pw0
-            'c': params['c1'] / params['c0'],                                   # C1/C0
-        }
-        params = new_params
+
+    time_series(axs[0][0], non_dim_params(params), init_vals, total_time)
+    poincare(axs[0][1], non_dim_params(params), init_vals, total_time)
     
-    
-    time_series(axs[0][0], params, init_vals, total_time)
-    poincare(axs[0][1], params, init_vals, total_time)
-    
-    stability_analysis(params)
-    
+    res = stability_analysis(non_dim_params(params), init_vals)
+    print(f"FIXED POINT: {res['fixed_point']}")
+    print(f"Max Eigenvalue Magnitude: {res['max_eigenvalue_mag']}")
     
     if ('param_bifurcation' in kwargs and 'param_range' in kwargs):
         bifurcation(axs[1][0], params, kwargs['param_bifurcation'], kwargs['param_range'], total_time, 'fraudsters')
@@ -362,8 +338,85 @@ def exec(params, init_vals, total_time, **kwargs):
     
     plt.show()
 
-contour_plot(
-    ax=axs[1][0], 
+# contour_plot(
+#     ax=axs[0][0], 
+#     params={
+#         'gamma_m': 1.0,
+#         'gamma_f': 1.0,
+#         'gamma_s': 1.0,
+#         'gamma_e': 1.0,
+#         'gamma_p': 1.0,
+#         'gamma_fp': 1.0,
+#         'e_d': 1.0,
+#         'e_sw': 1.0,
+#         'e_sm': 1.0,
+#         'K': 1.0,
+        
+#         'F_threshold': 0.5,
+#         'q': 0.07,
+#         'r': 0.225,
+#         'pw0': 1.0,
+#         'c0': 0.9,
+        
+#         'pw1': 0.9,
+#         'c1': 0.0425
+#     }, 
+#     initial_vals=np.array([0.5, 0.5, 0.5, 0.5]), 
+#     x_param='pw1', 
+#     y_param='c1', 
+#     x_range=[0.01, 1.0], 
+#     y_range=[0.01, 1.0],
+#     resolution=300, 
+#     time=500
+# )
+# plt.show()
+
+exec(
+    params={
+        'gamma_m': 4.0,
+        'gamma_f': 1.0,
+        'gamma_s': 1.0,
+        'gamma_e': 1.0,
+        'gamma_p': 1.0,
+        'gamma_fp': 1.0,
+        'e_d': 1.0,
+        'e_sw': 1.0,
+        'e_sm': 1.0,
+        'K': 1.0,
+        
+        'F_threshold': 0.5,
+        'q': 0.07,
+        'r': 0.225,
+        'pw0': 1.0,
+        'c0': 0.9,
+        
+        'pw1': 1.0,
+        'c1': 0.153
+    },
+    init_vals=[0.5, 0.5, 0.5, 0.5], # [S, E, F, FP]
+    param_bifurcation='gamma_m',
+    param_range=[3.01, 6.0, 300],
+    total_time=500,
+    fire=True,
+    legacy=False,
+    comments='''
+        PRE: I'll raise gamma_m and see what's up. 
+        
+        POST: 
+    '''
+)
+ 
+
+
+
+
+
+
+
+
+
+
+exec(
     params={
         'gamma_m': 1.0,
         'gamma_f': 1.0,
@@ -377,23 +430,33 @@ contour_plot(
         'K': 1.0,
         
         'F_threshold': 0.5,
-        'q': 1.0,
+        'q': 0.07,
         'r': 0.225,
         'pw0': 1.0,
-        'c0': 0.17,
+        'c0': 0.9,
         
-        'pw1': 0.9,
-        'c1': 0.0425
-    }, 
-    initial_vals=np.array([0.5, 0.5, 0.5, 0.5]), 
-    x_param='', 
-    y_param='', 
-    x_range=[0.01, 1.0], 
-    y_range=[0.01, 1.0],
-    resolution=10, 
-    time=100
+        'pw1': 1.0,
+        'c1': 0.153
+    },
+    init_vals=[0.5, 0.5, 0.5, 0.5], # [S, E, F, FP]
+    # param_bifurcation='c1',
+    # param_range=[0.01, 0.9, 300],
+    total_time=500,
+    fire=False,
+    legacy=False,
+    comments='''
+        PRE: When I thought that pw0 = 1 and c0 = 0.17, the graphs seemed to be only stable.
+        When q = 0.07, effort was between 0 and 1, and when q = 1, effort was around 26. 
+        I've determined that q should be low (so 0.07 for now), but decided that perhaps the ratio 
+        between pw1:pw0 and c1:c0 would be 1 and 0.17 respectively. 
+        I've set c0 to be 0.9 just to ensure that fishing is still profitable even w/o fraudsters.
+        By setting pw0 and pw1 as 1 (so fraudsters having no impact on the fishing), c1 because the 
+        bifurcation parameter and we get to see how greatly c1 impacts the system. 
+        
+        POST: It's still not right. Market price simply isn't high enough. We can perhaps lower Pw0
+        towards 0 to grow nondim(gamma_m), or simply raise gamma_m.
+    '''
 )
-# plt.show()
 
 exec(
     params={
@@ -414,8 +477,8 @@ exec(
         'pw0': 1.0,
         'c0': 0.17,
         
-        'pw1': 0.9,
-        'c1': 0.0425
+        'pw1': 0.01,
+        'c1': 0.001
     },
     init_vals=[0.5, 0.5, 0.5, 0.5], # [S, E, F, FP]
     # param_bifurcation='pw1',
@@ -424,10 +487,14 @@ exec(
     fire=False,
     legacy=False,
     comments='''
-        PRE: idrk it's instincts
+        PRE: I have a baseline parameter set (essentially) from Yodzis' PhD thesis.
+        The only thing that wasn't covered was Pw1 and C1. 
+        This is assuming that all elasticities and gammas are one, and F_threshold is some arbitrary number like 0.5.
+        
+        The question now is what should Pw1 and C1 be?
     '''
 )
- 
+
 exec(
     params={
         'gamma_m': 1.0,
@@ -487,42 +554,5 @@ exec(
     comments='''
         COOL!
         param_p is a driver for ossicilations? There's osscillations that's for sure. It's like weird square like shapes. Cool to share.
-    '''
-)
-
-exec(
-    params={
-        'gamma_m': 1.0,
-        'gamma_f': 1.0,
-        'gamma_s': 1.0,
-        'gamma_e': 1.0,
-        'gamma_p': 1.0,
-        'gamma_fp': 1.0,
-        'e_d': 1.0,
-        'e_sw': 1.0,
-        'e_sm': 1.0,
-        'K': 1.0,
-        
-        'F_threshold': 0.5,
-        'q': 1.0,
-        'r': 0.225,
-        'pw0': 1.0,
-        'c0': 0.17,
-        
-        'pw1': 0.01,
-        'c1': 0.001
-    },
-    init_vals=[0.5, 0.5, 0.5, 0.5], # [S, E, F, FP]
-    # param_bifurcation='pw1',
-    # param_range=[0.01, 1.0, 300],
-    total_time=500,
-    fire=False,
-    legacy=False,
-    comments='''
-        PRE: I have a baseline parameter set (essentially) from Yodzis' PhD thesis.
-        The only thing that wasn't covered was Pw1 and C1. 
-        This is assuming that all elasticities and gammas are one, and F_threshold is some arbitrary number like 0.5.
-        
-        The question now is what should Pw1 and C1 be?
     '''
 )
