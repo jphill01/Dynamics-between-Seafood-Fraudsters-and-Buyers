@@ -10,17 +10,18 @@ from matplotlib.colors import ListedColormap
 
 # import warnings
 # warnings.filterwarnings("ignore")
-bump = 1e-9
+# bump = 1e-9
 bump = 0
 legacy_gamma_fp = 1.0
-seafood_state = lambda S, E, gamma_s: S * np.exp(gamma_s * (1 - S - E))
+def seafood_state(S, E, gamma_s): 
+    return np.max([S * np.exp(gamma_s * (1 - S - E)), bump])
 def effort_state(E, S, F, q, pw, c, e_sw, gamma_p, gamma_e): 
     term_1 = (F * (pw - 1) + 1)
     denom_e = (gamma_p * E * S + bump) ** e_sw
     term_2 = (q * S * (term_1 / denom_e))
     term_3 = (F * (c - 1)) + 1
     
-    return E * np.exp(gamma_e * (term_2 - term_3))
+    return np.max([E * np.exp(gamma_e * (term_2 - term_3)), bump])
 def fraudster_state(S, E, F, Fp, gamma_f, gamma_m, gamma_p, pw, e_sw, e_sm, e_d):
     denom_market = (E * S)**(e_sm/2) + bump
     price_market = gamma_m * ((1 - Fp)**(e_d/2) / denom_market)
@@ -37,6 +38,7 @@ def p_fraudster_state(F, Fp, F_threshold):
     exp_delta_fp = np.exp(delta_fp)
     
     return (Fp * exp_delta_fp) / (1 + Fp * (exp_delta_fp - 1))
+
 def market_and_wholesale_price(S, E, F, Fp, e_sm, e_sw, e_d, gamma_m, gamma_p, pw):
     denom_market = (E * S)**(e_sm/2) + bump
     price_market = gamma_m * ((1 - Fp)**(e_d/2) / denom_market)
@@ -173,6 +175,9 @@ def time_series(ax, params, initial_vals, time, include_market=False):
         line_graph([time_period, time_period, time_period, time_period, time_period, time_period], [seafood, effort, fraudsters, p_fraudsters, market_price, wholesale_price], ax, title=f"Time Series", y_label="Levels", x_label="Time (t)", line_label=["Seafood", "Effort", "Fraudsters", "Perceived Fraudsters", "Market Price", "Wholesale Price"], line_color=["Blue", "green", "red", "pink", "orange", "yellow"], y_lim=y_lim)
     else:
         line_graph([time_period, time_period, time_period, time_period], [seafood, effort, fraudsters, p_fraudsters], ax, title=f"Time Series", y_label="Levels", x_label="Time (t)", line_label=["Seafood", "Effort", "Fraudsters", "Perceived Fraudsters"], line_color=["Blue", "green", "red", "pink"], y_lim=y_lim)
+
+    return [seafood, effort, fraudsters, p_fraudsters]
+
 def bifurcation(ax, params, param_name, param_linspace, time, y_state_var):
     bifurcation_transient = int(time - (0.25 * time))
     
@@ -255,13 +260,17 @@ def stability_analysis(params, initial_vals):
             J[:, i] = (f_eps - f0) / epsilon
         return J
         
+    print(initial_vals)
     res = least_squares(
         equations_to_zero, 
         initial_vals, 
         args=(params,), 
         bounds=(0, np.inf), 
-        method='trf'
+        method='trf',
+        max_nfev=10000,
+        x_scale='jac',
     )
+    print(res)
     # Newton's method instead of least squares?
     # Forward difference?
     fixed_point = np.array(res.x, dtype=np.float128)
@@ -339,12 +348,13 @@ def exec(params, init_vals, total_time, **kwargs):
     if not kwargs['fire'] or kwargs['legacy']:
         return
 
-    time_series(axs[0][0], non_dim_params(params), init_vals, total_time)
+    state_var_vectors = time_series(axs[0][0], non_dim_params(params), init_vals, total_time)
     # poincare(axs[0][1], non_dim_params(params), init_vals, total_time)
     time_series(axs[0][1], non_dim_params(params), init_vals, total_time, True)
-    res = stability_analysis(non_dim_params(params), init_vals)
-    print(f"FIXED POINT: {res['fixed_point']}")
-    print(f"Max Eigenvalue Magnitude: {res['max_eigenvalue_mag']}")
+    # res = stability_analysis(non_dim_params(params), np.array([state_var_vectors[0][-1], state_var_vectors[1][-1], state_var_vectors[2][-1], state_var_vectors[3][-1]], dtype=np.float64))
+    res = stability_analysis(non_dim_params(params), [0.5, 0.5, 0.5, 0.5])
+    # print(f"FIXED POINT: {res['fixed_point']}")
+    # print(f"Max Eigenvalue Magnitude: {res['max_eigenvalue_mag']}")
     
     if ('param_bifurcation' in kwargs and 'param_range' in kwargs):
         bifurcation(axs[1][0], params, kwargs['param_bifurcation'], kwargs['param_range'], total_time, 'fraudsters')
@@ -355,204 +365,12 @@ def exec(params, init_vals, total_time, **kwargs):
     
     plt.show()
 
-# contour_plot(
-#     ax=axs[0][0], 
-#     params={
-#         'gamma_m': 1,
-#         'gamma_f': 1.0,
-#         'gamma_s': 1.0,
-#         'gamma_e': 1.0,
-#         'gamma_p': 1.0,
-#         'gamma_fp': 1.0,
-#         'e_d': 1.0,
-#         'e_sw': 1.0,
-#         'e_sm': 1.0,
-#         'K': 1.0,
-        
-#         'F_threshold': 0.5,
-#         'q': 0.07,
-#         'r': 0.225,
-#         'pw0': 1.0,
-#         'c0': 0.9,
-        
-#         'pw1': 0.9,
-#         'c1': 0.0425
-#     }, 
-#     initial_vals=np.array([0.5, 0.5, 0.5, 0.5]), 
-#     x_param='pw1', 
-#     y_param='c1', 
-#     x_range=[0.01, 1.0], 
-#     y_range=[0.01, 1.0],
-#     resolution=100, 
-#     time=100
-# )
-# contour_plot(
-#     ax=axs[0][1], 
-#     params={
-#         'gamma_m': 2,
-#         'gamma_f': 1.0,
-#         'gamma_s': 1.0,
-#         'gamma_e': 1.0,
-#         'gamma_p': 1.0,
-#         'gamma_fp': 1.0,
-#         'e_d': 1.0,
-#         'e_sw': 1.0,
-#         'e_sm': 1.0,
-#         'K': 1.0,
-        
-#         'F_threshold': 0.5,
-#         'q': 0.07,
-#         'r': 0.225,
-#         'pw0': 1.0,
-#         'c0': 0.9,
-        
-#         'pw1': 0.9,
-#         'c1': 0.0425
-#     }, 
-#     initial_vals=np.array([0.5, 0.5, 0.5, 0.5]), 
-#     x_param='pw1', 
-#     y_param='c1', 
-#     x_range=[0.01, 1.0], 
-#     y_range=[0.01, 1.0],
-#     resolution=100, 
-#     time=100
-# )
-# contour_plot(
-#     ax=axs[1][0], 
-#     params={
-#         'gamma_m': 3,
-#         'gamma_f': 1.0,
-#         'gamma_s': 1.0,
-#         'gamma_e': 1.0,
-#         'gamma_p': 1.0,
-#         'gamma_fp': 1.0,
-#         'e_d': 1.0,
-#         'e_sw': 1.0,
-#         'e_sm': 1.0,
-#         'K': 1.0,
-        
-#         'F_threshold': 0.5,
-#         'q': 0.07,
-#         'r': 0.225,
-#         'pw0': 1.0,
-#         'c0': 0.9,
-        
-#         'pw1': 0.9,
-#         'c1': 0.0425
-#     }, 
-#     initial_vals=np.array([0.5, 0.5, 0.5, 0.5]), 
-#     x_param='pw1', 
-#     y_param='c1', 
-#     x_range=[0.01, 1.0], 
-#     y_range=[0.01, 1.0],
-#     resolution=100, 
-#     time=100
-# )
-# contour_plot(
-#     ax=axs[1][1], 
-#     params={
-#         'gamma_m': 4,
-#         'gamma_f': 1.0,
-#         'gamma_s': 1.0,
-#         'gamma_e': 1.0,
-#         'gamma_p': 1.0,
-#         'gamma_fp': 1.0,
-#         'e_d': 1.0,
-#         'e_sw': 1.0,
-#         'e_sm': 1.0,
-#         'K': 1.0,
-        
-#         'F_threshold': 0.5,
-#         'q': 0.07,
-#         'r': 0.225,
-#         'pw0': 1.0,
-#         'c0': 0.9,
-        
-#         'pw1': 0.9,
-#         'c1': 0.0425
-#     }, 
-#     initial_vals=np.array([0.5, 0.5, 0.5, 0.5]), 
-#     x_param='pw1', 
-#     y_param='c1', 
-#     x_range=[0.01, 1.0], 
-#     y_range=[0.01, 1.0],
-#     resolution=100, 
-#     time=100
-# )
-# contour_plot(
-#     ax=axs[2][0], 
-#     params={
-#         'gamma_m': 5,
-#         'gamma_f': 1.0,
-#         'gamma_s': 1.0,
-#         'gamma_e': 1.0,
-#         'gamma_p': 1.0,
-#         'gamma_fp': 1.0,
-#         'e_d': 1.0,
-#         'e_sw': 1.0,
-#         'e_sm': 1.0,
-#         'K': 1.0,
-        
-#         'F_threshold': 0.5,
-#         'q': 0.07,
-#         'r': 0.225,
-#         'pw0': 1.0,
-#         'c0': 0.9,
-        
-#         'pw1': 0.9,
-#         'c1': 0.0425
-#     }, 
-#     initial_vals=np.array([0.5, 0.5, 0.5, 0.5]), 
-#     x_param='pw1', 
-#     y_param='c1', 
-#     x_range=[0.01, 1.0], 
-#     y_range=[0.01, 1.0],
-#     resolution=100, 
-#     time=100
-# )
-# contour_plot(
-#     ax=axs[2][1], 
-#     params={
-#         'gamma_m': 6,
-#         'gamma_f': 1.0,
-#         'gamma_s': 1.0,
-#         'gamma_e': 1.0,
-#         'gamma_p': 1.0,
-#         'gamma_fp': 1.0,
-#         'e_d': 1.0,
-#         'e_sw': 1.0,
-#         'e_sm': 1.0,
-#         'K': 1.0,
-        
-#         'F_threshold': 0.5,
-#         'q': 0.07,
-#         'r': 0.225,
-#         'pw0': 1.0,
-#         'c0': 0.9,
-        
-#         'pw1': 0.9,
-#         'c1': 0.0425
-#     }, 
-#     initial_vals=np.array([0.5, 0.5, 0.5, 0.5]), 
-#     x_param='pw1', 
-#     y_param='c1', 
-#     x_range=[0.01, 1.0], 
-#     y_range=[0.01, 1.0],
-#     resolution=100, 
-#     time=100
-# )
-# plt.show()
-
-
-
-
-
 exec(
     params={
-        'gamma_m': 10.0,
+        'gamma_m': 23.0,
         'gamma_f': 1.0,
         'gamma_s': 1.0,
-        'gamma_e': 2.0,
+        'gamma_e': 1.0,
         'gamma_p': 1.0,
         'gamma_fp': 1.0,
         'e_d': 1.0,
@@ -567,42 +385,9 @@ exec(
         'c0': 0.9,
         
         'pw1': 0.81,
-        'c1': 0.85
-    },
-    init_vals=[0.5, 0.5, 0.5, 0.5], # [S, E, F, FP]
-    # param_bifurcation='gamma_m',
-    # param_range=[3.01, 6.0, 300],
-    total_time=1000,
-    fire=False,
-    legacy=False,
-    comments='''
-        PRE: eqwer
-    '''
-)
-
-exec(
-    params={
-        'gamma_m': 23,
-        'gamma_f': 1.0,
-        'gamma_s': 1.0,
-        'gamma_e': 1.0,
-        'gamma_p': 1.0,
-        'gamma_fp': 1.0,
-        'e_d': 0.05,
-        'e_sw': 1.0,
-        'e_sm': 1.0,
-        'K': 1.0,
-        
-        'F_threshold': 0.5,
-        'q': 0.07,
-        'r': 0.225,
-        'pw0': 1.0,
-        'c0': 0.9,
-        
-        'pw1': 0.81,
         'c1': 0.153
     },
-    init_vals=[0.6, 0.3, 0.5, 0.1], # [S, E, F, FP]
+    init_vals=[0.6, 0.3, 0.1, 0.1], # [S, E, F, FP]
     # param_bifurcation='gamma_m',
     # param_range=[0.01, 6.0, 600],
     total_time=1000,
