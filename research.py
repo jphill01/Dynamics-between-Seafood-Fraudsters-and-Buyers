@@ -1,5 +1,4 @@
-# %pip install SALib
-
+import warnings
 import numbers
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,42 +7,50 @@ from numpy.linalg import eigvals
 from matplotlib.colors import ListedColormap
 
 
-# import warnings
-# warnings.filterwarnings("ignore")
-# bump = 1e-9
-bump = 0
 legacy_gamma_fp = 1.0
 def seafood_state(S, E, gamma_s): 
-    return np.max([S * np.exp(gamma_s * (1 - S - E)), bump])
+    return np.max([S * np.exp(gamma_s * (1 - S - E)), -1*np.inf])
 def effort_state(E, S, F, q, pw, c, e_sw, gamma_p, gamma_e): 
     term_1 = (F * (pw - 1) + 1)
-    denom_e = (gamma_p * E * S + bump) ** e_sw
+    denom_e = (gamma_p * E * S ) ** e_sw
     term_2 = (q * S * (term_1 / denom_e))
     term_3 = (F * (c - 1)) + 1
     
-    return np.max([E * np.exp(gamma_e * (term_2 - term_3)), bump])
+    return np.max([E * np.exp(gamma_e * (term_2 - term_3)), -1*np.inf])
 def fraudster_state(S, E, F, Fp, gamma_f, gamma_m, gamma_p, pw, e_sw, e_sm, e_d):
-    denom_market = (E * S)**(e_sm/2) + bump
-    price_market = gamma_m * ((1 - Fp)**(e_d/2) / denom_market)
-    
-    denom_wholesale = (gamma_p * E * S)**(e_sw) + bump
-    price_wholesale = (F * (pw - 1) + 1) / denom_wholesale
-    
-    delta = gamma_f * (price_market - price_wholesale)
-    if bump != 0:
-        delta = np.clip(delta, -20, 20) # Prevent overflow
-    return (F * np.exp(delta)) / (1 + F * (np.exp(delta) - 1))
+    with warnings.catch_warnings(record=True) as recorded_warnings:
+        # Ensure all warnings are captured
+        if Fp > 1:
+            Fp = 1 - 1e-9
+        warnings.simplefilter("always")
+        denom_market = (E * S)**(e_sm/2)
+        price_market = gamma_m * ((1 - Fp)**(e_d/2) / denom_market)
+        
+        denom_wholesale = (gamma_p * E * S)**(e_sw)
+        price_wholesale = (F * (pw - 1) + 1) / denom_wholesale
+        
+        delta = gamma_f * (price_market - price_wholesale)
+    if recorded_warnings:
+        print(f"Captured {len(recorded_warnings)} warning(s):")
+        print(f"S: {S}")
+        print(f"E: {E}")
+        print(f"F: {F}")
+        print(f"Fp: {Fp}")
+        print(f"marketprice: {price_market}")
+        for w in recorded_warnings:
+            print(f"- Message: {w.message}, Category: {w.category.__name__}")
+    return np.max([(F * np.exp(delta)) / (1 + F * (np.exp(delta) - 1)), 1e-9])
 def p_fraudster_state(F, Fp, F_threshold): 
     delta_fp = legacy_gamma_fp * (F - F_threshold)
     exp_delta_fp = np.exp(delta_fp)
-    
-    return (Fp * exp_delta_fp) / (1 + Fp * (exp_delta_fp - 1))
+
+    return np.max([(Fp * exp_delta_fp) / (1 + Fp * (exp_delta_fp - 1)), 1e-9])
 
 def market_and_wholesale_price(S, E, F, Fp, e_sm, e_sw, e_d, gamma_m, gamma_p, pw):
-    denom_market = (E * S)**(e_sm/2) + bump
+    denom_market = (E * S)**(e_sm/2)
     price_market = gamma_m * ((1 - Fp)**(e_d/2) / denom_market)
     
-    denom_wholesale = (gamma_p * E * S)**(e_sw) + bump
+    denom_wholesale = (gamma_p * E * S)**(e_sw)
     price_wholesale = (F * (pw - 1) + 1) / denom_wholesale
     
     return [price_market, price_wholesale]
