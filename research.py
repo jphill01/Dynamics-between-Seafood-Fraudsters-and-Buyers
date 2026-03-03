@@ -20,8 +20,11 @@ def effort_state(E, S, F, q, pw, c, e_sw, gamma_p, gamma_e):
 def fraudster_state(S, E, F, Fp, gamma_f, gamma_m, gamma_p, pw, e_sw, e_sm, e_d):
     with warnings.catch_warnings(record=True) as recorded_warnings:
         # Ensure all warnings are captured
-        if Fp > 1:
-            Fp = 1 - 1e-9
+        # if Fp > 1:
+        #     Fp = 1 - 1e-9
+        if F > 1:
+            print(f"F WENT OVER{F}")
+            # F = 1.0
         warnings.simplefilter("always")
         denom_market = (E * S)**(e_sm/2)
         price_market = gamma_m * ((1 - Fp)**(e_d/2) / denom_market)
@@ -36,9 +39,10 @@ def fraudster_state(S, E, F, Fp, gamma_f, gamma_m, gamma_p, pw, e_sw, e_sm, e_d)
         print(f"E: {E}")
         print(f"F: {F}")
         print(f"Fp: {Fp}")
-        print(f"marketprice: {price_market}")
+        print(f"market price: {price_market}")
         for w in recorded_warnings:
             print(f"- Message: {w.message}, Category: {w.category.__name__}")
+    
     return np.max([(F * np.exp(delta)) / (1 + F * (np.exp(delta) - 1)), lowest_point])
 def p_fraudster_state(F, Fp, F_threshold): 
     delta_fp = legacy_gamma_fp * (F - F_threshold)
@@ -181,7 +185,7 @@ def time_series(ax, params, initial_vals, time, include_market=False):
     if include_market:
         line_graph([time_period, time_period, time_period, time_period, time_period, time_period], [seafood, effort, fraudsters, p_fraudsters, market_price, wholesale_price], ax, title=f"Time Series", y_label="Levels", x_label="Time (t)", line_label=["Seafood", "Effort", "Fraudsters", "Perceived Fraudsters", "Market Price", "Wholesale Price"], line_color=["Blue", "green", "red", "pink", "orange", "yellow"], y_lim=y_lim)
     else:
-        line_graph([time_period, time_period, time_period, time_period], [seafood, effort, fraudsters, p_fraudsters], ax, title=f"Time Series", y_label="Levels", x_label="Time (t)", line_label=["Seafood", "Effort", "Fraudsters", "Perceived Fraudsters"], line_color=["Blue", "green", "red", "pink"], y_lim=y_lim)
+        line_graph([time_period, time_period, time_period, time_period], [seafood, effort, fraudsters, p_fraudsters], ax, title=f"Time Series demand elasticity: {params["e_d"]}", y_label="Levels", x_label="Time (t)", line_label=["Seafood", "Effort", "Fraudsters", "Perceived Fraudsters"], line_color=["Blue", "green", "red", "pink"], y_lim=y_lim)
 
     return [seafood, effort, fraudsters, p_fraudsters]
 
@@ -357,10 +361,24 @@ def exec(params, init_vals, total_time, **kwargs):
     if not kwargs['fire'] or kwargs['legacy']:
         return
 
+    p_copy = params
+    params["e_d"] = 0.001
     state_var_vectors = time_series(axs[0][0], non_dim_params(params), init_vals, total_time)
+    params["e_d"] = 0.01
+    state_var_vectors = time_series(axs[0][1], non_dim_params(params), init_vals, total_time)
+    params["e_d"] = 0.1
+    state_var_vectors = time_series(axs[1][0], non_dim_params(params), init_vals, total_time)
+    params["e_d"] = 1.0
+    state_var_vectors = time_series(axs[1][1], non_dim_params(params), init_vals, total_time)
+    params["e_d"] = 8.0
+    state_var_vectors = time_series(axs[2][0], non_dim_params(params), init_vals, total_time)
+    params["e_d"] = 10.0
+    state_var_vectors = time_series(axs[2][1], non_dim_params(params), init_vals, total_time)
+    state_var_vectors = [init_vals]
     # poincare(axs[0][1], non_dim_params(params), init_vals, total_time)
-    time_series(axs[0][1], non_dim_params(params), init_vals, total_time, True)
-    res = stability_analysis(non_dim_params(params), np.array([state_var_vectors[0][-1], state_var_vectors[1][-1], state_var_vectors[2][-1], state_var_vectors[3][-1]], dtype=np.float64))
+    # time_series(axs[0][1], non_dim_params(params), init_vals, total_time, True)
+    # res = stability_analysis(non_dim_params(params), np.array([state_var_vectors[0][-1], state_var_vectors[1][-1], state_var_vectors[2][-1], state_var_vectors[3][-1]], dtype=np.float64))
+    res = stability_analysis(non_dim_params(params), init_vals)
     if res['success']:    
         print(f"FIXED POINT: {res['fixed_point']}")
         print(f"Max Eigenvalue Magnitude: {res['max_eigenvalue_mag']}")
@@ -381,7 +399,7 @@ exec(
         'gamma_e': 1.0,
         'gamma_p': 1.0,
         'gamma_fp': 1.0,
-        'e_d': 1.0,
+        'e_d': 0.001,
         'e_sw': 1.0,
         'e_sm': 1.0,
         'K': 1.0,
@@ -398,7 +416,7 @@ exec(
     init_vals=[0.6, 0.3, 0.1, 0.1], # [S, E, F, FP]
     # param_bifurcation='gamma_m',
     # param_range=[0.01, 6.0, 600],
-    total_time=1000,
+    total_time=100,
     fire=True,
     legacy=False,
     comments='''
