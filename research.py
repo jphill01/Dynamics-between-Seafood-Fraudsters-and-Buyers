@@ -6,7 +6,7 @@ from scipy.optimize import least_squares
 from numpy.linalg import eigvals
 from matplotlib.colors import ListedColormap
 
-
+lowest_point = 1e-12
 legacy_gamma_fp = 1.0
 def seafood_state(S, E, gamma_s): 
     return np.max([S * np.exp(gamma_s * (1 - S - E)), -1*np.inf])
@@ -39,12 +39,12 @@ def fraudster_state(S, E, F, Fp, gamma_f, gamma_m, gamma_p, pw, e_sw, e_sm, e_d)
         print(f"marketprice: {price_market}")
         for w in recorded_warnings:
             print(f"- Message: {w.message}, Category: {w.category.__name__}")
-    return np.max([(F * np.exp(delta)) / (1 + F * (np.exp(delta) - 1)), 1e-9])
+    return np.max([(F * np.exp(delta)) / (1 + F * (np.exp(delta) - 1)), lowest_point])
 def p_fraudster_state(F, Fp, F_threshold): 
     delta_fp = legacy_gamma_fp * (F - F_threshold)
     exp_delta_fp = np.exp(delta_fp)
 
-    return np.max([(Fp * exp_delta_fp) / (1 + Fp * (exp_delta_fp - 1)), 1e-9])
+    return np.max([(Fp * exp_delta_fp) / (1 + Fp * (exp_delta_fp - 1)), lowest_point])
 
 def market_and_wholesale_price(S, E, F, Fp, e_sm, e_sw, e_d, gamma_m, gamma_p, pw):
     denom_market = (E * S)**(e_sm/2)
@@ -247,14 +247,11 @@ def bifurcation(ax, params, param_name, param_linspace, time, y_state_var):
     ax.set_ylim([0, 1.1])
     ax.grid(True, alpha=0.3)
 def stability_analysis(params, initial_vals):
-    def equations_to_zero(x, p):
+    def residuals(x, p):
         """
         For fixed points, we want X_{t+1} - X_{t} = 0.
         """
-        # Enforce non-negativity with absolute value for physical feasibility 
-        # during solver steps (optional but helps stability)
-        x_safe = np.abs(x) 
-        return system_map(x_safe, p) - x_safe   
+        return system_map(x, p) - x   
     def get_numerical_jacobian(func, x, p, epsilon=1e-8):
         """Approximates the Jacobian matrix using finite differences."""
         n = len(x)
@@ -267,9 +264,8 @@ def stability_analysis(params, initial_vals):
             J[:, i] = (f_eps - f0) / epsilon
         return J
         
-    print(initial_vals)
     res = least_squares(
-        equations_to_zero, 
+        residuals, 
         initial_vals, 
         args=(params,), 
         bounds=(0, np.inf), 
@@ -277,10 +273,15 @@ def stability_analysis(params, initial_vals):
         max_nfev=10000,
         x_scale='jac',
     )
-    print(res)
-    # Newton's method instead of least squares?
-    # Forward difference?
     fixed_point = np.array(res.x, dtype=np.float128)
+    
+    if not res.success:
+        return {
+            "fixed_point": None,
+            "jacobian": None,
+            "max_eigenvalue_mag": None,
+            "success": False
+        }
         
     J = np.array(get_numerical_jacobian(func=system_map, x=fixed_point, p=params), dtype=np.float64)
     eigenvalues = eigvals(J)
@@ -290,7 +291,8 @@ def stability_analysis(params, initial_vals):
     return {
         "fixed_point": fixed_point,
         "jacobian": J,
-        "max_eigenvalue_mag": max_eigenvalue_mag
+        "max_eigenvalue_mag": max_eigenvalue_mag,
+        "success": res.success
     }
 def poincare(ax, params, initial_vals, time):
     seafood, effort, fraudsters, p_fraudsters = np.array([initial_vals[0]], dtype=np.longdouble), np.array([initial_vals[1]], dtype=np.longdouble), np.array([initial_vals[2]], dtype=np.longdouble), np.array([initial_vals[3]], dtype=np.longdouble)
@@ -358,17 +360,16 @@ def exec(params, init_vals, total_time, **kwargs):
     state_var_vectors = time_series(axs[0][0], non_dim_params(params), init_vals, total_time)
     # poincare(axs[0][1], non_dim_params(params), init_vals, total_time)
     time_series(axs[0][1], non_dim_params(params), init_vals, total_time, True)
-    # res = stability_analysis(non_dim_params(params), np.array([state_var_vectors[0][-1], state_var_vectors[1][-1], state_var_vectors[2][-1], state_var_vectors[3][-1]], dtype=np.float64))
-    res = stability_analysis(non_dim_params(params), [0.5, 0.5, 0.5, 0.5])
-    # print(f"FIXED POINT: {res['fixed_point']}")
-    # print(f"Max Eigenvalue Magnitude: {res['max_eigenvalue_mag']}")
+    res = stability_analysis(non_dim_params(params), np.array([state_var_vectors[0][-1], state_var_vectors[1][-1], state_var_vectors[2][-1], state_var_vectors[3][-1]], dtype=np.float64))
+    if res['success']:    
+        print(f"FIXED POINT: {res['fixed_point']}")
+        print(f"Max Eigenvalue Magnitude: {res['max_eigenvalue_mag']}")
     
     if ('param_bifurcation' in kwargs and 'param_range' in kwargs):
         bifurcation(axs[1][0], params, kwargs['param_bifurcation'], kwargs['param_range'], total_time, 'fraudsters')
         bifurcation(axs[1][1], params, kwargs['param_bifurcation'], kwargs['param_range'], total_time, 'p_fraudsters')
         bifurcation(axs[2][0], params, kwargs['param_bifurcation'], kwargs['param_range'], total_time, 'effort')
         bifurcation(axs[2][1], params, kwargs['param_bifurcation'], kwargs['param_range'], total_time, 'seafood')
-    
     
     plt.show()
 
