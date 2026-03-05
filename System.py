@@ -49,7 +49,11 @@ class DynamicalSystem():
         exp_delta_fp = np.exp(delta_fp)
 
         return np.max([(Fp * exp_delta_fp) / (1 + Fp * (exp_delta_fp - 1)), LOWEST_POINT])
-
+    @staticmethod
+    def demand(Fp, H, e_d, e_ms):
+        return np.sqrt((1-Fp)**e_d*H**e_ms)
+    
+    
     def __init__(self, params):
         # Nondim params
         self.params = {
@@ -74,4 +78,4 @@ class DynamicalSystem():
         F_new = DynamicalSystem.fraudster_state(S, E, F, FP, self.params['gamma_f'], self.params['gamma_m'], self.params['gamma_p'], self.params['pw'], self.params['e_sw'], self.params['e_sm'], self.params['e_d'])
         Fp_new = DynamicalSystem.p_fraudster_state(F, FP, self.params['F_threshold'])
         return np.array([S_new, E_new, F_new, Fp_new])
-        
+ 

@@ -379,7 +379,7 @@ def exec(params, init_vals, total_time, **kwargs):
 
 exec(
     params={
-        'gamma_m': 23.0,
+        'gamma_m': 10.0,
         'gamma_f': 1.0,
         'gamma_s': 1.0,
         'gamma_e': 1.0,
@@ -400,10 +400,10 @@ exec(
         'c1': 0.153
     },
     init_vals=[0.6, 0.3, 0.1, 0.1], # [S, E, F, FP]
-    param_bifurcation='e_d',
-    param_range=[0.01, 10, 300],
+    # param_bifurcation='e_d',
+    # param_range=[0.01, 10, 300],
     total_time=1000,
-    fire=False,
+    fire=True,
     legacy=False,
     comments='''
         PRE: Let's see how e_d being close to inelastic effects the plot
@@ -413,7 +413,7 @@ exec(
         
         I think a good baseline set of parameters is the following:
         {
-            'gamma_m': 10.0,  -> Anything above ~4.5 will drive oscillations
+            'gamma_m': 20.0,  -> Anything above ~4.5 will drive oscillations
             'gamma_f': 1.0,
             'gamma_s': 1.0,
             'gamma_e': 1.0,
