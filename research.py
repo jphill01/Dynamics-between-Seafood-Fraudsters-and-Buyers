@@ -23,8 +23,8 @@ def fraudster_state(S, E, F, Fp, gamma_f, gamma_m, gamma_p, pw, e_sw, e_sm, e_d)
         # if Fp > 1:
         #     Fp = 1 - 1e-9
         if F > 1:
-            print(f"F WENT OVER{F}")
-            # F = 1.0
+            # print(f"F WENT OVER{F}")
+            F = 1 - 1e-12
         warnings.simplefilter("always")
         denom_market = (E * S)**(e_sm/2)
         price_market = gamma_m * ((1 - Fp)**(e_d/2) / denom_market)
@@ -360,28 +360,14 @@ y_lim = None
 def exec(params, init_vals, total_time, **kwargs):
     if not kwargs['fire'] or kwargs['legacy']:
         return
-
-    p_copy = params
-    params["e_d"] = 0.001
+    
     state_var_vectors = time_series(axs[0][0], non_dim_params(params), init_vals, total_time)
-    params["e_d"] = 0.01
-    state_var_vectors = time_series(axs[0][1], non_dim_params(params), init_vals, total_time)
-    params["e_d"] = 0.1
-    state_var_vectors = time_series(axs[1][0], non_dim_params(params), init_vals, total_time)
-    params["e_d"] = 1.0
-    state_var_vectors = time_series(axs[1][1], non_dim_params(params), init_vals, total_time)
-    params["e_d"] = 8.0
-    state_var_vectors = time_series(axs[2][0], non_dim_params(params), init_vals, total_time)
-    params["e_d"] = 10.0
-    state_var_vectors = time_series(axs[2][1], non_dim_params(params), init_vals, total_time)
-    state_var_vectors = [init_vals]
-    # poincare(axs[0][1], non_dim_params(params), init_vals, total_time)
-    # time_series(axs[0][1], non_dim_params(params), init_vals, total_time, True)
-    # res = stability_analysis(non_dim_params(params), np.array([state_var_vectors[0][-1], state_var_vectors[1][-1], state_var_vectors[2][-1], state_var_vectors[3][-1]], dtype=np.float64))
-    res = stability_analysis(non_dim_params(params), init_vals)
-    if res['success']:    
-        print(f"FIXED POINT: {res['fixed_point']}")
-        print(f"Max Eigenvalue Magnitude: {res['max_eigenvalue_mag']}")
+    
+    if ("stability" in kwargs.keys() and kwargs['stability'] == True):
+        res = stability_analysis(non_dim_params(params), np.array([state_var_vectors[0][-1], state_var_vectors[1][-1], state_var_vectors[2][-1], state_var_vectors[3][-1]], dtype=np.float64))
+        if res['success']:    
+            print(f"FIXED POINT: {res['fixed_point']}")
+            print(f"Max Eigenvalue Magnitude: {res['max_eigenvalue_mag']}")
     
     if ('param_bifurcation' in kwargs and 'param_range' in kwargs):
         bifurcation(axs[1][0], params, kwargs['param_bifurcation'], kwargs['param_range'], total_time, 'fraudsters')
@@ -399,7 +385,7 @@ exec(
         'gamma_e': 1.0,
         'gamma_p': 1.0,
         'gamma_fp': 1.0,
-        'e_d': 0.001,
+        'e_d': 1.0,
         'e_sw': 1.0,
         'e_sm': 1.0,
         'K': 1.0,
@@ -414,15 +400,41 @@ exec(
         'c1': 0.153
     },
     init_vals=[0.6, 0.3, 0.1, 0.1], # [S, E, F, FP]
-    # param_bifurcation='gamma_m',
-    # param_range=[0.01, 6.0, 600],
-    total_time=100,
-    fire=True,
+    param_bifurcation='e_d',
+    param_range=[0.01, 10, 300],
+    total_time=1000,
+    fire=False,
     legacy=False,
     comments='''
         PRE: Let's see how e_d being close to inelastic effects the plot
         
-        POST: e_d being high increases cycles. e_d being low untagles oscillations
+        POST: e_d mainly affects Fp and its oscillations. The amplitude
+        of Fp's oscillations get smaller and approach 1 as e_d approaches 0.
+        
+        I think a good baseline set of parameters is the following:
+        {
+            'gamma_m': 10.0,  -> Anything above ~4.5 will drive oscillations
+            'gamma_f': 1.0,
+            'gamma_s': 1.0,
+            'gamma_e': 1.0,
+            'gamma_p': 1.0,
+            'gamma_fp': 1.0,
+            'e_d': 1.0,
+            'e_sw': 1.0,
+            'e_sm': 1.0,
+            'K': 1.0,
+            
+            'F_threshold': 0.5,
+            'q': 0.07,
+            'r': 0.225,
+            'pw0': 1.0,
+            'c0': 0.9,
+            
+            'pw1': 0.81,
+            'c1': 0.153
+        }
+        
+        A good 
     '''
 )
 
