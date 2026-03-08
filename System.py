@@ -4,6 +4,7 @@ import warnings
 LOWEST_POINT = 1e-12
 legacy_gamma_fp = 1.0
 class DynamicalSystem():
+    # STATE VARIABLES
     @staticmethod
     def seafood_state(S, E, gamma_s): 
         return np.max([S * np.exp(gamma_s * (1 - S - E)), -1*np.inf])
@@ -49,12 +50,17 @@ class DynamicalSystem():
         exp_delta_fp = np.exp(delta_fp)
 
         return np.max([(Fp * exp_delta_fp) / (1 + Fp * (exp_delta_fp - 1)), LOWEST_POINT])
+    
+    # VARIABLES
+    @staticmethod
+    def demand(Fp, H, e_d, e_ms):
+        return np.sqrt((1-Fp)**e_d*H**e_ms)
     @staticmethod
     def demand(Fp, H, e_d, e_ms):
         return np.sqrt((1-Fp)**e_d*H**e_ms)
     
     
-    def __init__(self, params):
+    def __init__(self, params, state):
         # Nondim params
         self.params = {
             'gamma_m': params['gamma_m'] / (params['pw0'] * (params['r'] * params['K']) ** (params['e_sm'] / 2.0)),
@@ -68,6 +74,7 @@ class DynamicalSystem():
             'pw': params['pw1'] / params['pw0'],
             'c': params['c1'] / params['c0'],
         }
+        self.state = state
     
     def system_map(self, state):
         S, E, F, FP = state

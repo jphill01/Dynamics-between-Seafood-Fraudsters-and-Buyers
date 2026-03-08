@@ -49,14 +49,17 @@ def p_fraudster_state(F, Fp, F_threshold):
     exp_delta_fp = np.exp(delta_fp)
 
     return np.max([(Fp * exp_delta_fp) / (1 + Fp * (exp_delta_fp - 1)), lowest_point])
+Fprice_m = lambda S, E, FP, q, e_sm, e_d, gamma_m: gamma_m * np.sqrt((1-FP)**e_d/(q*E*S)**e_sm)
+Fprice_w = lambda S, E, F, q, pw0, pw1, e_sw, gamma_p: ((pw1 - pw0)*F + pw0)/(gamma_p*q*E*S)**e_sw
 
-def market_and_wholesale_price(S, E, F, Fp, e_sm, e_sw, e_d, gamma_m, gamma_p, pw):
-    denom_market = (E * S)**(e_sm/2)
-    price_market = gamma_m * ((1 - Fp)**(e_d/2) / denom_market)
+def market_and_wholesale_price(S, E, F, Fp, e_sm, e_sw, e_d, gamma_m, gamma_p, pw0, pw1, q):
+    # denom_market = (E * S)**(e_sm/2)
+    # price_market = gamma_m * ((1 - Fp)**(e_d/2) / denom_market)
     
-    denom_wholesale = (gamma_p * E * S)**(e_sw)
-    price_wholesale = (F * (pw - 1) + 1) / denom_wholesale
+    # denom_wholesale = (gamma_p * E * S)**(e_sw)
+    # price_wholesale = (F * (pw - 1) + 1) / denom_wholesale
     
+    return [Fprice_m(S, E, Fp, q, e_sm, e_d, gamma_m), Fprice_w(S, E, F, q, pw0, pw1, e_sw, gamma_p), pw0 / (gamma_p * q * E * S) ** e_sw, pw1 / (gamma_p * q * E * S) ** e_sw]
     return [price_market, price_wholesale]
 def non_dim_params(params):
     return {
@@ -165,10 +168,34 @@ def system_map(state, params):
     return np.array([S_new, E_new, F_new, Fp_new])
 
 def time_series(ax, params, initial_vals, time, include_market=False): 
+    nondim_p = {
+        'gamma_m': 2.0,
+        'gamma_f': 1.0,
+        'gamma_s': 1.0,
+        'gamma_e': 1.0,
+        'gamma_p': 1.0,
+        'gamma_fp': 1.0,
+        'e_d': 1.0,
+        'e_sw': 1.0,
+        'e_sm': 2.0,
+        'K': 1.0,
+        
+        'F_threshold': 0.5,
+        'q': 0.07,
+        'r': 0.225,
+        'pw0': 1.0,
+        'c0': 0.9,
+        
+        'pw1': 0.81,
+        'c1': 0.153
+    }
+    
     seafood, effort, fraudsters, p_fraudsters = np.array([initial_vals[0]], dtype=np.longdouble), np.array([initial_vals[1]], dtype=np.longdouble), np.array([initial_vals[2]], dtype=np.longdouble), np.array([initial_vals[3]], dtype=np.longdouble)
-    buf = market_and_wholesale_price(initial_vals[0], initial_vals[1], initial_vals[2], initial_vals[3], params['e_sm'], params['e_sw'], params['e_d'], params['gamma_m'], params['gamma_p'], params['pw'])
+    buf = market_and_wholesale_price(initial_vals[0], initial_vals[1], initial_vals[2], initial_vals[3], params['e_sm'], params['e_sw'], params['e_d'], params['gamma_m'], params['gamma_p'], nondim_p['pw0'], nondim_p['pw1'], nondim_p['q'])
     market_price = np.array([buf[0]], dtype=np.float128)
     wholesale_price = np.array([buf[1]], dtype=np.float128)
+    wholesale_pw0_h = np.array([buf[2]], dtype=np.float128)
+    wholesale_pw1_h = np.array([buf[3]], dtype=np.float128)
     
     time_period = []
     for i in range(time):
@@ -177,13 +204,15 @@ def time_series(ax, params, initial_vals, time, include_market=False):
         effort = np.append(effort, effort_state(effort[i], seafood[i], fraudsters[i], params['q'], params['pw'], params['c'], params['e_sw'], params['gamma_p'], params['gamma_e']))
         fraudsters = np.append(fraudsters, fraudster_state(seafood[i], effort[i], fraudsters[i], p_fraudsters[i], params['gamma_f'], params['gamma_m'], params['gamma_p'], params['pw'], params['e_sw'], params['e_sm'], params['e_d']))
         p_fraudsters = np.append(p_fraudsters, p_fraudster_state(fraudsters[i], p_fraudsters[i], params['F_threshold']))
-        buf = market_and_wholesale_price(seafood[i], effort[i], fraudsters[i], p_fraudsters[i], params['e_sm'], params['e_sw'], params['e_d'], params['gamma_m'], params['gamma_p'], params['pw'])
+        buf = market_and_wholesale_price(seafood[i], effort[i], fraudsters[i], p_fraudsters[i], params['e_sm'], params['e_sw'], params['e_d'], params['gamma_m'], params['gamma_p'], nondim_p['pw0'], nondim_p['pw1'], nondim_p['q'])
         market_price = np.append(market_price, buf[0])
         wholesale_price = np.append(wholesale_price, buf[1])
+        wholesale_pw0_h = np.append(wholesale_pw0_h, buf[2])
+        wholesale_pw1_h = np.append(wholesale_pw1_h, buf[3])
     time_period.append(time)
     
     if include_market:
-        line_graph([time_period, time_period, time_period, time_period, time_period, time_period], [seafood, effort, fraudsters, p_fraudsters, market_price, wholesale_price], ax, title=f"Time Series", y_label="Levels", x_label="Time (t)", line_label=["Seafood", "Effort", "Fraudsters", "Perceived Fraudsters", "Market Price", "Wholesale Price"], line_color=["Blue", "green", "red", "pink", "orange", "yellow"], y_lim=y_lim)
+        line_graph([time_period, time_period, time_period, time_period], [wholesale_pw0_h, wholesale_pw1_h, market_price, wholesale_price], ax, title=f"Time Series", y_label="Levels", x_label="Time (t)", line_label=["pw0_h", "pw1_h", "Market Price", "Wholesale Price"], line_color=["Blue", "green","orange", "yellow"], y_lim=y_lim)
     else:
         line_graph([time_period, time_period, time_period, time_period], [seafood, effort, fraudsters, p_fraudsters], ax, title=f"Time Series demand elasticity: {params["e_d"]}", y_label="Levels", x_label="Time (t)", line_label=["Seafood", "Effort", "Fraudsters", "Perceived Fraudsters"], line_color=["Blue", "green", "red", "pink"], y_lim=y_lim)
 
@@ -362,7 +391,7 @@ def exec(params, init_vals, total_time, **kwargs):
         return
     
     state_var_vectors = time_series(axs[0][0], non_dim_params(params), init_vals, total_time)
-    
+    state_var_vectors = time_series(axs[0][1], non_dim_params(params), init_vals, total_time, True)
     if ("stability" in kwargs.keys() and kwargs['stability'] == True):
         res = stability_analysis(non_dim_params(params), np.array([state_var_vectors[0][-1], state_var_vectors[1][-1], state_var_vectors[2][-1], state_var_vectors[3][-1]], dtype=np.float64))
         if res['success']:    
@@ -379,7 +408,41 @@ def exec(params, init_vals, total_time, **kwargs):
 
 exec(
     params={
-        'gamma_m': 10.0,
+        'gamma_m': 2.0,
+        'gamma_f': 1.0,
+        'gamma_s': 1.0,
+        'gamma_e': 1.0,
+        'gamma_p': 1.0,
+        'gamma_fp': 1.0,
+        'e_d': 1.0,
+        'e_sw': 1.0,
+        'e_sm': 2.0,
+        'K': 1.0,
+        
+        'F_threshold': 0.5,
+        'q': 0.07,
+        'r': 0.225,
+        'pw0': 1.0,
+        'c0': 0.9,
+        
+        'pw1': 0.81,
+        'c1': 0.153
+    },
+    init_vals=[0.6, 0.3, 0.1, 0.1], # [S, E, F, FP]
+    # param_bifurcation='e_d',
+    # param_range=[0.01, 10, 300],
+    stability=False,
+    total_time=100,
+    fire=True,
+    legacy=False,
+    comments='''
+        PRE: e_d at 0??
+    '''
+)
+
+exec(
+    params={
+        'gamma_m': 23.0,
         'gamma_f': 1.0,
         'gamma_s': 1.0,
         'gamma_e': 1.0,
@@ -402,8 +465,9 @@ exec(
     init_vals=[0.6, 0.3, 0.1, 0.1], # [S, E, F, FP]
     # param_bifurcation='e_d',
     # param_range=[0.01, 10, 300],
-    total_time=1000,
-    fire=True,
+    stability=False,
+    total_time=100,
+    fire=False,
     legacy=False,
     comments='''
         PRE: Let's see how e_d being close to inelastic effects the plot

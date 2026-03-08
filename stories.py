@@ -80,6 +80,6 @@ def ed_fp():
         y_state_var='p_fraudsters'
     )
 
-# ed_fp_demand(low_harvest=0.01, high_harvest=0.05)
-ed_fp()
+ed_fp_demand(low_harvest=0.01, high_harvest=0.05)
+# ed_fp()
 plt.show()
