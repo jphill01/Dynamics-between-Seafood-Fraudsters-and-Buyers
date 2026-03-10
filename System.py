@@ -1,9 +1,12 @@
 import numpy as np
 import warnings
 
+CLOSE_TO_ZERO = np.finfo(np.float64).eps
+CLOSE_TO_ONE = 1 - np.finfo(np.float64).epsneg
+POSITIVE_INF = np.inf
 class DynamicalSystem():
     # STATE VARIABLES (nondimensionalized)
-    def _seafood_state(self):
+    def seafood_state(self):
         S = self.state['S']
         E = self.state['E']
         gamma_s = self.nondim_params['gamma_s']
@@ -13,12 +16,16 @@ class DynamicalSystem():
             Reduces risk of numerical imprecisions 
             (and values reaching areas they shouldn't reach).
         '''
-        S_next = np.clip([S * np.exp(gamma_s * (1 - S - E))], np.finfo(type(S)).eps, np.inf)[0]
+        S_next = np.clip(
+            [S * np.exp(gamma_s * (1 - S - E))],
+            CLOSE_TO_ZERO,
+            POSITIVE_INF
+        )[0]
         
         # Update state and return
         self.state['S'] = S_next
         return S_next
-    def _effort_state(self): 
+    def effort_state(self): 
         S = self.state['S']
         E = self.state['E']
         F = self.state['F']
@@ -39,12 +46,16 @@ class DynamicalSystem():
             Reduces risk of numerical imprecisions 
             (and values reaching areas they shouldn't reach).
         '''
-        E_next = np.clip([E * np.exp(gamma_e * (term_2 - term_3))], np.finfo(type(S)).eps, np.inf)[0]
+        E_next = np.clip(
+            [E * np.exp(gamma_e * (term_2 - term_3))],
+            CLOSE_TO_ZERO,
+            POSITIVE_INF
+        )[0]
         
         # Update state and return
         self.state['E'] = E_next
         return E_next
-    def _fraudster_state(self):
+    def fraudster_state(self):
         S = self.state['S']
         E = self.state['E']
         F = self.state['F']
@@ -66,26 +77,42 @@ class DynamicalSystem():
             return 1.0
         if F == 0.0:
             return 0.0
-         
-        denom_market = (E * S)**(e_sm/2)
-        price_market = gamma_m * ((1 - FP)**(e_d/2) / denom_market)
         
-        denom_wholesale = (gamma_p * E * S)**(e_sw)
-        price_wholesale = (F * (pw - 1) + 1) / denom_wholesale
-        
-        delta = gamma_f * (price_market - price_wholesale)
-        
-        '''
+        with warnings.catch_warnings(record=True) as recorded_warnings:
+            denom_market = (E * S)**(e_sm/2)
+            price_market = gamma_m * ((1 - FP)**(e_d/2) / denom_market)
+            
+            denom_wholesale = (gamma_p * E * S)**(e_sw)
+            price_wholesale = (F * (pw - 1) + 1) / denom_wholesale
+            
+            delta = gamma_f * (price_market - price_wholesale)
+            
+            '''
             Artifically clip between 0 and 1 (noninclusive).
             Reduces risk of numerical imprecisions 
             (and values reaching areas they shouldn't reach).
-        '''
-        F_next = np.clip([(F * np.exp(delta)) / (1 + F * (np.exp(delta) - 1))], np.finfo(type(S)).eps, 1.0 - np.finfo(type(S)).epsneg)[0]
+            '''
+            F_next = np.clip(
+                [(F * np.exp(delta)) / (1 + F * (np.exp(delta) - 1))],
+                CLOSE_TO_ZERO,
+                CLOSE_TO_ONE
+            )[0]
+        if recorded_warnings:
+            print(f"Captured {len(recorded_warnings)} warning(s):")
+            print(f"S: {S}")
+            print(f"E: {E}")
+            print(f"F: {F}")
+            print(f"Fp: {FP}")
+            print(f"market price: {price_market}")
+            print(f"wholesale price: {price_wholesale}")
+            print(self.params)
+            for w in recorded_warnings:
+                print(f"- Message: {w.message}, Category: {w.category.__name__}")
         
         # Update state and return
         self.state['F'] = F_next
         return F_next
-    def _p_fraudster_state(self): 
+    def p_fraudster_state(self): 
         F = self.state['F']
         FP = self.state['FP']
         F_threshold = self.nondim_params['F_threshold']
@@ -98,7 +125,11 @@ class DynamicalSystem():
             Reduces risk of numerical imprecisions 
             (and values reaching areas they shouldn't reach).
         '''
-        FP_next = np.clip([(FP * exp_delta_fp) / (1 + FP * (exp_delta_fp - 1))], np.finfo(type(F)).eps, 1 - np.finfo(type(F)).epsneg)[0]
+        FP_next = np.clip(
+            [(FP * exp_delta_fp) / (1 + FP * (exp_delta_fp - 1))],
+            CLOSE_TO_ZERO,
+            CLOSE_TO_ONE
+        )[0]
         
         # Update state and return
         self.state['FP'] = FP_next
@@ -118,7 +149,7 @@ class DynamicalSystem():
         return np.clip([q * E * S], np.finfo(type(S)).eps, np.inf)[0]
     def demand(self):
         FP = self.state['FP']
-        e_ms = self.params['e_ms']
+        e_sm = self.params['e_sm']
         e_d = self.params['e_d']
         
         H = self.harvest()
@@ -128,7 +159,7 @@ class DynamicalSystem():
             Reduces risk of numerical imprecisions 
             (and values reaching areas they shouldn't reach).
         '''
-        return np.clip([np.sqrt((FP)**e_d * H**e_ms)], np.finfo(type(FP)).eps, np.inf)[0]
+        return np.clip([np.sqrt((FP)**e_d * H**e_sm)], np.finfo(type(FP)).eps, np.inf)[0]
     def market_price(self):
         FP = self.state['FP']
         e_d = self.params['e_d']
@@ -146,7 +177,7 @@ class DynamicalSystem():
         pw0 = self.params['pw0']
         pw1 = self.params['pw1']
         e_sw = self.params['e_sw']
-        H = self.harvest
+        H = self.harvest()
         
         '''
             Artificially create a floor near 0+.
@@ -184,20 +215,10 @@ class DynamicalSystem():
                 * F (float128): Current level of fraud.
                 * FP (float128): Public perception of fraud.
         '''
+        self._params = {}
+        self._state = {}
+        
         self.params = params
-        self.nondim_params = {
-            'gamma_m': params['gamma_m'] / (params['pw0'] * (params['r'] * params['K']) ** (params['e_sm'] / 2.0)),
-            'gamma_p': params['gamma_p'] * params['r'] * params['K'],
-            'gamma_f': params['gamma_f'] * params['pw0'],
-            'gamma_s': params['gamma_s'] * params['r'],
-            'gamma_e': params['gamma_e'] * params['c0'],
-            'gamma_fp': params['gamma_fp'],
-            'e_sm': params['e_sm'], 'e_sw': params['e_sw'], 'e_d': params['e_d'],
-            'F_threshold': params['F_threshold'],
-            'q': (params['q'] * params['pw0'] * params['K']) / params['c0'],
-            'pw': params['pw1'] / params['pw0'],
-            'c': params['c1'] / params['c0'],
-        }
         self.state = state
     
     def system_map(self) -> dict:        
@@ -228,4 +249,34 @@ class DynamicalSystem():
             'harvest': harvest,
             'demand': demand
         }
- 
+    
+    @property
+    def state(self):
+        return self._state
+    @state.setter
+    def state(self, value):
+        self._state = value
+        
+    @property
+    def params(self):
+        return self._params
+    @params.setter
+    def params(self, value):
+        self._params = value
+    
+    @property
+    def nondim_params(self):
+        params = self.params
+        return {
+            'gamma_m': params['gamma_m'] / (params['pw0'] * (params['r'] * params['K']) ** (params['e_sm'] / 2.0)),
+            'gamma_p': params['gamma_p'] * params['r'] * params['K'],
+            'gamma_f': params['gamma_f'] * params['pw0'],
+            'gamma_s': params['gamma_s'] * params['r'],
+            'gamma_e': params['gamma_e'] * params['c0'],
+            'gamma_fp': params['gamma_fp'],
+            'e_sm': params['e_sm'], 'e_sw': params['e_sw'], 'e_d': params['e_d'],
+            'F_threshold': params['F_threshold'],
+            'q': (params['q'] * params['pw0'] * params['K']) / params['c0'],
+            'pw': params['pw1'] / params['pw0'],
+            'c': params['c1'] / params['c0'],
+        }

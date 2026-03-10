@@ -42,7 +42,13 @@ def fraudster_state(S, E, F, Fp, gamma_f, gamma_m, gamma_p, pw, e_sw, e_sm, e_d)
         print(f"market price: {price_market}")
         for w in recorded_warnings:
             print(f"- Message: {w.message}, Category: {w.category.__name__}")
-    
+    if gamma_m < 1.3 and gamma_m > 1.0:
+        print(f"S: {S}")
+        print(f"E: {E}")
+        print(f"F: {F}")
+        print(f"Fp: {Fp}")
+        print(f"market price: {price_market}")
+        print(gamma_m)
     return np.max([(F * np.exp(delta)) / (1 + F * (np.exp(delta) - 1)), lowest_point])
 def p_fraudster_state(F, Fp, F_threshold): 
     delta_fp = legacy_gamma_fp * (F - F_threshold)
@@ -416,7 +422,7 @@ exec(
         'gamma_fp': 1.0,
         'e_d': 1.0,
         'e_sw': 1.0,
-        'e_sm': 2.0,
+        'e_sm': 1.0,
         'K': 1.0,
         
         'F_threshold': 0.5,
@@ -429,8 +435,8 @@ exec(
         'c1': 0.153
     },
     init_vals=[0.6, 0.3, 0.1, 0.1], # [S, E, F, FP]
-    # param_bifurcation='e_d',
-    # param_range=[0.01, 10, 300],
+    param_bifurcation='gamma_m',
+    param_range=[0.01, 10, 100],
     stability=False,
     total_time=100,
     fire=True,

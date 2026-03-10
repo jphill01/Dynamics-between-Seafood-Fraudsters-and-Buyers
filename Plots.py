@@ -5,7 +5,39 @@ import matplotlib.pyplot as plt
 from System import DynamicalSystem
 
 class Plots():
-    @staticmethod
+    def time_series_plot(self, ax, time, title, x_label, y_label):
+        # Initializing the state variable vectors
+        init_vals = self.system.state
+        seafood = np.array(init_vals['S'], dtype=np.float128)
+        effort = np.array(init_vals['E'], dtype=np.float128)
+        fraudsters = np.array(init_vals['F'], dtype=np.float128)
+        p_fraudsters = np.array(init_vals['FP'], dtype=np.float128)
+        
+        # Filling the state variable vectors
+        time_steps = []
+        for i in range(time):
+            time_steps.append(i)
+            result = self.system.system_map()
+            
+            seafood = np.append(seafood, result['S'])
+            effort = np.append(effort, result['E'])
+            fraudsters = np.append(fraudsters, result['F'])
+            p_fraudsters = np.append(p_fraudsters, result['FP'])
+        time_steps.append(time)
+        
+        # Set plot labels
+        ax.set_title(title)
+        ax.set_xlabel(x_label)
+        ax.set_ylabel(y_label)
+        
+        # Plot vectors
+        ax.plot(time_steps, seafood, label='Seafood (S)', color='blue', linewidth=2)
+        ax.plot(time_steps, effort, label='Effort (E)', color='green', linewidth=2)
+        ax.plot(time_steps, fraudsters, label='Fraud (F)', color='red', linewidth=2)
+        ax.plot(time_steps, p_fraudsters, label='Perception (FP)', color='pink', linewidth=2)
+        
+        ax.grid(True)
+        
     def surface_plot(x_series, y_series, z_series, ax, **kwargs):
         """
         Creates a line graph in 2-D or 3-D (optional)
@@ -96,18 +128,18 @@ class Plots():
             ax.view_init(kwargs['view'][0], kwargs['view'][1], kwargs['view'][2])
 
         ax.grid(True)
-    @staticmethod
-    def bifurcation_plot(ax, init_vals, params, param_name, param_linspace, time, y_state_var):
+    def bifurcation_plot(self, ax, init_vals, param_name, param_range, resolution, time, y_state_var):
         transient = int(time - (0.25 * time))
         
-        def run_system(system, steps=time):
+        def run_system():
             trajectory = []
-            next = init_vals
+            self.system.state = init_vals
             
-            for t in range(steps):
+            for t in range(time):
                 # Update
-                next = system.system_map(next)
-                S, E, F, FP = next
+                next = self.system.system_map()
+                S, E, F, FP = next['S'], next['E'], next['F'], next['FP']
+                
                 # Store only after transient period to see steady state behavior
                 if t > transient:
                     if y_state_var == "fraudsters":
@@ -120,7 +152,8 @@ class Plots():
                         trajectory.append(E)
                     
             return trajectory
-        param_values = np.linspace(param_linspace[0], param_linspace[1], param_linspace[2])
+        
+        param_values = np.linspace(param_range[0], param_range[1], resolution)
 
         x_vals = []
         y_vals = []
@@ -129,13 +162,12 @@ class Plots():
 
         for val in param_values:
             # Update param
-            current_params = params.copy()
+            current_params = self.system.params
             current_params[param_name] = val
-            
-            system = DynamicalSystem(current_params)
-                    
+            self.system.params = current_params
+                                
             # Run
-            points = run_system(system)
+            points = run_system()
             
             # Append to lists
             for p in points:
@@ -150,3 +182,60 @@ class Plots():
         ax.set_ylim([0, 1.1])
         ax.grid(True, alpha=0.3)
         
+    def __init__(self, system):
+        self.system : DynamicalSystem = system
+        
+sys = DynamicalSystem(
+    params={
+        'gamma_m': 1.0,
+        'gamma_f': 1.0,
+        'gamma_s': 1.0,
+        'gamma_e': 1.0,
+        'gamma_p': 1.0,
+        'gamma_fp': 1.0,
+        'e_d': 1.0,
+        'e_sw': 1.0,
+        'e_sm': 2.0,
+        'K': 1.0,
+        
+        'F_threshold': 0.5,
+        'q': 0.07,
+        'r': 0.225,
+        'pw0': 1.0,
+        'c0': 0.9,
+        
+        'pw1': 0.81,
+        'c1': 0.153
+    },
+    state={
+        'S': 0.6,
+        'E': 0.3,
+        'F': 0.1,
+        'FP': 0.1
+    }
+)
+plots = Plots(sys)
+
+fig, axs = plt.subplots(1, 1, figsize=(15, 15))
+plots.bifurcation_plot(
+    ax=axs,
+    init_vals={
+        'S': 0.5,
+        'E': 0.5,
+        'F': 0.2,
+        'FP': 0.5
+    },
+    param_name='gamma_m',
+    param_range=[0.01, 10],
+    resolution=100,
+    time=100,
+    y_state_var = "p_fraudsters"
+)
+# plots.time_series_plot(
+#     ax=axs,
+#     time=100,
+#     title="Time Series",
+#     x_label="qwer",
+#     y_label="qwer"
+# )
+plt.show()
