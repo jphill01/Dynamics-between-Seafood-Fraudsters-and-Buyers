@@ -439,7 +439,7 @@ exec(
     param_range=[0.01, 10, 100],
     stability=False,
     total_time=100,
-    fire=True,
+    fire=False,
     legacy=False,
     comments='''
         PRE: e_d at 0??
