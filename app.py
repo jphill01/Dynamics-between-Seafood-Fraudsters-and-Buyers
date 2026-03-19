@@ -3,40 +3,20 @@ import pandas as pd
 import numpy as np
 from System import DynamicalSystem
 from text import INTRO
-from numpy.random import default_rng as rng
 import plotly.graph_objects as go
 
-system = DynamicalSystem(
-    params={
-        'gamma_m': 10.0,
-        'gamma_f': 1.0,
-        'gamma_s': 1.0,
-        'gamma_e': 1.0,
-        'gamma_p': 1.0,
-        'gamma_fp': 1.0,
-        'e_d': 1.0,
-        'e_sw': 1.0,
-        'e_sm': 1.0,
-        'K': 1.0,
-        
-        'F_threshold': 0.5,
-        'q': 0.07,
-        'r': 0.225,
-        'pw0': 1.0,
-        'c0': 0.9,
-        
-        'pw1': 0.81,
-        'c1': 0.153
-    },
-    state={
-        'S': 0.6,
-        'E': 0.3,
-        'F': 0.1,
-        'FP': 0.1
-    }
-)
+base_params = {
+    'gamma_m': 5.0, 'gamma_f': 1.0, 'gamma_s': 1.0, 'gamma_e': 0.225,
+    'gamma_p': 1.0, 'gamma_fp': 1.0, 'e_d': 1.0, 'e_sw': 1.0, 'e_sm': 1.0,
+    'K': 1.0, 'F_threshold': 0.5, 'q': 0.07, 'r': 0.225, 'pw0': 1.0,
+    'c0': 0.9, 'pw1': 0.81, 'c1': 0.153
+}
+init_state = {'S': np.float128(0.6), 'E': np.float128(0.3), 'F': np.float128(0.1), 'FP': np.float128(0.1)}
 
-simulation = system.time_series_plot(time=500)
+system = DynamicalSystem(
+    params=base_params,
+    state=init_state
+)
 
 # Start of page
 st.set_page_config(
@@ -45,10 +25,14 @@ st.set_page_config(
     page_icon=":fish:"
 )
 
+# INTRODUCTION
 st.write(INTRO)
     
+# TIME SERIES PLOT
 st.header("Time Series")
 st.write("Time series of the system with its default parameters")
+
+simulation = system.time_series_plot(time=500)
 df = pd.DataFrame(
     np.array(list(zip(*simulation.values())), dtype="float64"),
     columns=simulation.keys()
@@ -59,6 +43,7 @@ st.line_chart(
     y_label="Levels"
 )
 
+# ELASTICITY OF DEMAND PLOT
 col1, col2 = st.columns(2)
 with col1:
     st.header("Scenario: Market price elasticty of demand represents buyers' dependency on resource")
@@ -67,11 +52,51 @@ with col1:
     fig = go.Figure(data=[
         go.Surface(z=res['Low Harvest']),
         go.Surface(z=res['High Harvest']),
-        # go.Surface(z=z2, showscale=False, opacity=0.9),
-        # go.Surface(z=z3, showscale=False, opacity=0.9)
-
     ])
-
     st.plotly_chart(fig)
     
 
+st.title("System Dynamics: Varying gamma_m and pw1")
+# 1. Define your base parameters and initial state
+base_params = {
+    'gamma_m': 20.0, 'gamma_f': 1.0, 'gamma_s': 1.0, 'gamma_e': 0.225,
+    'gamma_p': 1.0, 'gamma_fp': 1.0, 'e_d': 1.0, 'e_sw': 1.0, 'e_sm': 1.0,
+    'K': 1.0, 'F_threshold': 0.5, 'q': 0.07, 'r': 0.225, 'pw0': 1.0,
+    'c0': 0.9, 'pw1': 0.81, 'c1': 0.153
+}
+init_state = {'S': np.float128(0.6), 'E': np.float128(0.3), 'F': np.float128(0.1), 'FP': np.float128(0.1)}
+
+system = DynamicalSystem(params=base_params, state=init_state)
+
+gamma_m_vals = [5.0, 7.5, 10.0, 12.5]
+pw1_vals = {'lower': 0.1, 'little_lower': 0.81, 'little_higher': 5.0, 'higher': 10.0}
+
+for g_m in gamma_m_vals:
+    st.subheader(f"γ_m (gamma_m) = {g_m}")
+    
+    # Create 4 columns for this row
+    cols = st.columns(4)
+    
+    # Iterate through the columns and pw1 values simultaneously
+    for col, (pw1_label, pw1_val) in zip(cols, pw1_vals.items()):
+        
+        # Reset the state and update the parameters for this specific plot
+        system.state = init_state.copy()
+        system.params['gamma_m'] = g_m
+        system.params['pw1'] = pw1_val
+        
+        # Run the simulation
+        nut = system.time_series_plot(time=500) 
+        
+        # Convert dictionary data to a Pandas DataFrame for Streamlit
+        df = pd.DataFrame({
+            'Seafood (S)': np.array(nut['Seafood'], dtype="float64"),
+            'Effort (E)': np.array(nut['Effort'], dtype="float64"),
+            'Fraudsters (F)': np.array(nut['Fraudsters'], dtype="float64"),
+            'Perception (FP)': np.array(nut['Perception of Fraud'], dtype="float64")
+        })
+        
+        # Place the chart inside the specific column
+        with col:
+            st.markdown(f"**pw1 = {pw1_val}** ({pw1_label})")
+            st.line_chart(df, height=300)

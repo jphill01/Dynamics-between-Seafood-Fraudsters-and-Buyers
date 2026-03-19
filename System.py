@@ -1,10 +1,8 @@
 import numpy as np
 import warnings
-import matplotlib.pyplot as plt
-import matplotlib
 
-CLOSE_TO_ZERO = np.finfo(np.float64).eps
-CLOSE_TO_ONE = 1 - np.finfo(np.float64).epsneg
+CLOSE_TO_ZERO = np.finfo(np.float128).eps
+CLOSE_TO_ONE = 1 - np.finfo(np.float128).epsneg
 POSITIVE_INF = np.inf
 class DynamicalSystem():
     # CONSTRUCTOR
@@ -56,10 +54,10 @@ class DynamicalSystem():
         '''
         S_next = np.clip(
             [S * np.exp(gamma_s * (1 - S - E))],
-            CLOSE_TO_ZERO,
+            np.finfo(np.float128).eps,
             POSITIVE_INF
         )[0]
-        
+
         return S_next
     def effort_state(self): 
         S = self.state['S']
@@ -142,7 +140,6 @@ class DynamicalSystem():
             print(self.params)
             for w in recorded_warnings:
                 print(f"- Message: {w.message}, Category: {w.category.__name__}")
-                
         return F_next
     def p_fraudster_state(self): 
         F = self.state['F']
@@ -264,7 +261,6 @@ class DynamicalSystem():
             fraudsters = np.append(fraudsters, result['F'])
             p_fraudsters = np.append(p_fraudsters, result['FP'])
         time_steps.append(time)
-        
         if ax is not None:
             # Set plot labels
             ax.set_title(title)
@@ -361,7 +357,41 @@ class DynamicalSystem():
             "Low Harvest": demand,
             "High Harvest": demand_2
         }
+    def effects_of_pw1(self, pw1, time=500):
+        '''
+        Args: 
+            pw1: {'lower': int, 'little_lower': int, 'little_higher': int, 'higher': int}
+            time: int
+        Returns:
+            dict: {'lower': time_series, 'little_lower': time_series, 'little_higher': time_series, 'higher': time_series}
+        '''
+        ret_val = {}
+        start_state = self.state
+        p = self.params
+        p['pw1'] = pw1['lower']
+        self.params = p
+        ret_val['lower'] = self.time_series_plot(time=time, title="Lower pw1")
         
+        p = self.params
+        p['pw1'] = pw1['little_lower']
+        self.params = p
+        self.state = start_state
+        ret_val['little_lower'] = self.time_series_plot(time=time, title="Little Lower pw1")
+        
+        p = self.params
+        p['pw1'] = pw1['little_higher']
+        self.params = p
+        self.state = start_state
+        ret_val['little_higher'] = self.time_series_plot(time=time, title="Little Higher pw1")
+        
+        p = self.params
+        p['pw1'] = pw1['higher']
+        self.params = p
+        self.state = start_state
+        ret_val['higher'] = self.time_series_plot(time=time, title="Higher pw1")
+        
+        self.state = start_state
+        return ret_val
     
     # FUNCTION PROPERTIES
     @property
@@ -394,50 +424,4 @@ class DynamicalSystem():
             'pw': params['pw1'] / params['pw0'],
             'c': params['c1'] / params['c0'],
         }
-
-# sys = DynamicalSystem(
-#     params={
-#         'gamma_m': 2.0,
-#         'gamma_f': 1.0,
-#         'gamma_s': 1.0,
-#         'gamma_e': 1.0,
-#         'gamma_p': 1.0,
-#         'gamma_fp': 1.0,
-#         'e_d': 1.0,
-#         'e_sw': 1.0,
-#         'e_sm': 1.0,
-#         'K': 1.0,
         
-#         'F_threshold': 0.5,
-#         'q': 0.07,
-#         'r': 0.225,
-#         'pw0': 1.0,
-#         'c0': 0.9,
-        
-#         'pw1': 0.81,
-#         'c1': 0.153
-#     },
-#     state={
-#         'S': 0.6,
-#         'E': 0.3,
-#         'F': 0.1,
-#         'FP': 0.1
-#     }
-# )
-# fig, ax = plt.subplots(figsize=(6,4))
-# # sys.time_series_plot(ax, 500, "idk", "idk as well", "mane what")
-# sys.bifurcation_plot(
-#     ax=ax,
-#     init_vals = {
-#         'S': 0.6,
-#         'E': 0.3,
-#         'F': 0.1,
-#         'FP': 0.1
-#     },
-#     param_name='gamma_m',
-#     param_range=[0.01, 10, 100],
-#     resolution=100,
-#     time=100,
-#     y_state_var='p_fraudsters'
-# )
-# plt.show()
