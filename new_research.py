@@ -47,15 +47,28 @@ plots_info = [
 ]
 
 for ax, (key, title) in zip(axs.flatten(), plots_info):
-    ax.plot(nut[key]['Seafood'], label='Seafood (S)')
-    ax.plot(nut[key]['Effort'], label='Effort (E)')
-    ax.plot(nut[key]['Fraudsters'], label='Fraudsters (F)')
-    ax.plot(nut[key]['Perception of Fraud'], label='Perception (FP)')
+    # Plot State Variables on the primary Y-axis
+    l1 = ax.plot(nut[key]['Seafood'], label='Seafood (S)', color='blue')
+    l2 = ax.plot(nut[key]['Effort'], label='Effort (E)', color='green')
+    l3 = ax.plot(nut[key]['Fraudsters'], label='Fraudsters (F)', color='red')
+    l4 = ax.plot(nut[key]['Perception of Fraud'], label='Perception (FP)', color='pink')
+    l5 = ax.plot(nut[key]['Harvest'], label='Harvest', color='brown')
+    ax.set_ylabel('State [0, 1]')
+    
+    # Create a secondary Y-axis for the Prices
+    ax2 = ax.twinx()
+    l6 = ax2.plot(nut[key]['Market Price'], label='Market Price', color='orange', linestyle='--')
+    l7 = ax2.plot(nut[key]['Wholesale Price'], label='Wholesale Price', color='purple', linestyle='--')
+    ax2.set_ylabel('Price ($)')
+    
+    # Combine legends from both axes
+    lines = l1 + l2 + l3 + l4 + l5 + l6 + l7
+    labels = [l.get_label() for l in lines]
+    ax.legend(lines, labels, loc='upper right', fontsize='small')
+    
     ax.set_title(title)
     ax.set_xlabel('Time')
-    ax.set_ylabel('State')
-    ax.grid(True)
-    ax.legend()
+    ax.grid(True, alpha=0.3)
 
 # fig, ax = plt.subplots(figsize=(10, 6))
 # ts_data = system.time_series_plot(time=500, title="System Dynamics over Time", x_label="Time", y_label="State", ax=ax)

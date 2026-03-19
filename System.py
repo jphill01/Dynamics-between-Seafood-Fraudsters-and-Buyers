@@ -198,7 +198,7 @@ class DynamicalSystem():
             Reduces risk of numerical imprecisions 
             (and values reaching areas they shouldn't reach).
         '''
-        return np.clip([np.sqrt((1-FP)**e_d / H**e_sm)], np.finfo(type(FP)).eps, np.inf)[0]
+        return np.clip([np.sqrt((1-FP)**e_d / H**e_sm)], CLOSE_TO_ZERO, POSITIVE_INF)[0]
     def wholesale_price(self):
         F = self.state['F']
         pw0 = self.params['pw0']
@@ -248,6 +248,11 @@ class DynamicalSystem():
         fraudsters = np.array(self.state['F'], dtype=np.float128)
         p_fraudsters = np.array(self.state['FP'], dtype=np.float128)
         
+        # Calculate initial prices for time = 0
+        harvest_arr = np.array(self.harvest(), dtype=np.float128)
+        market_price_arr = np.array(self.market_price(), dtype=np.float128)
+        wholesale_price_arr = np.array(self.wholesale_price(), dtype=np.float128)
+        
         # Filling the state variable vectors
         time_steps = []
         for i in range(time):
@@ -260,7 +265,14 @@ class DynamicalSystem():
             effort = np.append(effort, result['E'])
             fraudsters = np.append(fraudsters, result['F'])
             p_fraudsters = np.append(p_fraudsters, result['FP'])
+            
+            # Append new prices
+            market_price_arr = np.append(market_price_arr, result['market_price'])
+            wholesale_price_arr = np.append(wholesale_price_arr, result['wholesale_price'])
+            harvest_arr = np.append(harvest_arr, result['harvest'])
+            
         time_steps.append(time)
+        
         if ax is not None:
             # Set plot labels
             ax.set_title(title)
@@ -273,13 +285,20 @@ class DynamicalSystem():
             ax.plot(time_steps, fraudsters, label='Fraud (F)', color='red', linewidth=2)
             ax.plot(time_steps, p_fraudsters, label='Perception (FP)', color='pink', linewidth=2)
             
+            # Plot prices as dashed lines
+            ax.plot(time_steps, market_price_arr, label='Market Price', color='orange', linewidth=2, linestyle='--')
+            ax.plot(time_steps, wholesale_price_arr, label='Wholesale Price', color='purple', linewidth=2, linestyle='--')
+            
             ax.grid(True)
             
         return {
             'Seafood': seafood,
             'Effort': effort,
             'Fraudsters': fraudsters,
-            'Perception of Fraud': p_fraudsters
+            'Perception of Fraud': p_fraudsters,
+            'Market Price': market_price_arr,
+            'Wholesale Price': wholesale_price_arr,
+            'Harvest': harvest_arr
         }
     def bifurcation_plot(self, ax, init_vals, param_name, param_range, resolution, time, y_state_var):
         transient = int(time - (0.25 * time))
@@ -357,7 +376,7 @@ class DynamicalSystem():
             "Low Harvest": demand,
             "High Harvest": demand_2
         }
-    def effects_of_pw1(self, pw1, time=500):
+    def effects_of_pw1(self, pw1, time=100):
         '''
         Args: 
             pw1: {'lower': int, 'little_lower': int, 'little_higher': int, 'higher': int}
