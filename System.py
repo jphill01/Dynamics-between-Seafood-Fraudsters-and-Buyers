@@ -213,6 +213,32 @@ class DynamicalSystem():
         '''
         return np.clip([(F*(pw1 - pw0) + pw0) / H**e_sw], np.finfo(type(F)).eps, np.inf)[0]
     
+    # TESTING
+    def nondim_market_price(self):
+        FP = self.state['FP']
+        e_d = self.nondim_params['e_d']
+        e_sm = self.nondim_params['e_sm']
+        E = self.state['E']
+        S = self.state['S']
+        gamma_m = self.nondim_params['gamma_m']
+        
+        denom_market = (E * S)**(e_sm/2)
+        price_market = gamma_m * ((1 - FP)**(e_d/2) / denom_market)
+        
+        return np.clip([price_market], CLOSE_TO_ZERO, POSITIVE_INF)[0]
+    def nondim_wholesale_price(self):
+        F = self.state['F']
+        E = self.state['E']
+        S = self.state['S']
+        pw = self.nondim_params['pw']
+        e_sw = self.nondim_params['e_sw']
+        gamma_p = self.nondim_params['gamma_p']
+        
+        denom_wholesale = (gamma_p * E * S)**(e_sw)
+        price_wholesale = (F * (pw - 1) + 1) / denom_wholesale
+        
+        return np.clip([price_wholesale], CLOSE_TO_ZERO, POSITIVE_INF)[0]
+    
     def system_map(self) -> dict:        
         '''
         Get system's values for the next time step
@@ -225,6 +251,8 @@ class DynamicalSystem():
         wholesale_price = self.wholesale_price()
         harvest = self.harvest()
         demand = self.demand()
+        nondim_market_price = self.nondim_market_price()
+        nondim_wholesale_price = self.nondim_wholesale_price()
         
         S_next = self.seafood_state()
         E_next = self.effort_state()
@@ -239,7 +267,9 @@ class DynamicalSystem():
             'market_price': market_price,
             'wholesale_price': wholesale_price,
             'harvest': harvest,
-            'demand': demand
+            'demand': demand,
+            'nondim_market_price': nondim_market_price,
+            'nondim_wholesale_price': nondim_wholesale_price
         }
     def time_series_plot(self, time, title="", x_label="", y_label="", ax=None) -> dict:
         # Initializing the state variable vectors
@@ -252,6 +282,9 @@ class DynamicalSystem():
         harvest_arr = np.array(self.harvest(), dtype=np.float128)
         market_price_arr = np.array(self.market_price(), dtype=np.float128)
         wholesale_price_arr = np.array(self.wholesale_price(), dtype=np.float128)
+        
+        nondim_market_price = np.array(self.nondim_market_price(), dtype=np.float128)
+        nondim_wholesale_price = np.array(self.nondim_wholesale_price(), dtype=np.float128)
         
         # Filling the state variable vectors
         time_steps = []
@@ -271,6 +304,9 @@ class DynamicalSystem():
             wholesale_price_arr = np.append(wholesale_price_arr, result['wholesale_price'])
             harvest_arr = np.append(harvest_arr, result['harvest'])
             
+            nondim_market_price = np.append(nondim_market_price, result['nondim_market_price'])
+            nondim_wholesale_price = np.append(nondim_wholesale_price, result['nondim_wholesale_price'])
+            
         time_steps.append(time)
         
         if ax is not None:
@@ -285,9 +321,9 @@ class DynamicalSystem():
             ax.plot(time_steps, fraudsters, label='Fraud (F)', color='red', linewidth=2)
             ax.plot(time_steps, p_fraudsters, label='Perception (FP)', color='pink', linewidth=2)
             
-            # Plot prices as dashed lines
-            ax.plot(time_steps, market_price_arr, label='Market Price', color='orange', linewidth=2, linestyle='--')
-            ax.plot(time_steps, wholesale_price_arr, label='Wholesale Price', color='purple', linewidth=2, linestyle='--')
+            # # Plot prices as dashed lines
+            # ax.plot(time_steps, market_price_arr, label='Market Price', color='orange', linewidth=2, linestyle='--')
+            # ax.plot(time_steps, wholesale_price_arr, label='Wholesale Price', color='purple', linewidth=2, linestyle='--')
             
             ax.grid(True)
             
@@ -298,7 +334,9 @@ class DynamicalSystem():
             'Perception of Fraud': p_fraudsters,
             'Market Price': market_price_arr,
             'Wholesale Price': wholesale_price_arr,
-            'Harvest': harvest_arr
+            'Harvest': harvest_arr,
+            'Nondim Market Price': nondim_market_price,
+            'Nondim Wholesale Price': nondim_wholesale_price
         }
     def bifurcation_plot(self, ax, init_vals, param_name, param_range, resolution, time, y_state_var):
         transient = int(time - (0.25 * time))
@@ -376,7 +414,7 @@ class DynamicalSystem():
             "Low Harvest": demand,
             "High Harvest": demand_2
         }
-    def effects_of_pw1(self, pw1, time=100):
+    def effects_of_pw1(self, pw1, time=40):
         '''
         Args: 
             pw1: {'lower': int, 'little_lower': int, 'little_higher': int, 'higher': int}
