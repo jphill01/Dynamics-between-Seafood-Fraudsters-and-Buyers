@@ -42,17 +42,18 @@ if True:
     # params['F_threshold'] = 0.01
     system = DynamicalSystem(
         params=params,
-        state=init_state
+        state=init_state,
+        type="dimensionalized"
     )
     
     fig, ax = plt.subplots(figsize=(10, 6))
     ts_data = system.time_series_plot(time=500)
 
     # Plot State Variables on the primary Y-axis
-    l1 = ax.plot(ts_data['Seafood Nondim'], label='Seafood (S)', color='blue')
-    l2 = ax.plot(ts_data['Effort Nondim'], label='Effort (E)', color='green') 
-    l3 = ax.plot(ts_data['Fraudsters Nondim'], label='Fraudsters (F)', color='red')
-    l4 = ax.plot(ts_data['Perception of Fraud Nondim'], label='Perception (FP)', color='pink')
+    l1 = ax.plot(ts_data['Seafood'], label='Seafood (S)', color='blue')
+    l2 = ax.plot(ts_data['Effort'], label='Effort (E)', color='green') 
+    l3 = ax.plot(ts_data['Fraudsters'], label='Fraudsters (F)', color='red')
+    l4 = ax.plot(ts_data['Perception of Fraud'], label='Perception (FP)', color='pink')
     # l5 = ax.plot(ts_data['Harvest'], label='Harvest', color='brown')
     ax.set_ylabel('State [0, 1]')
     

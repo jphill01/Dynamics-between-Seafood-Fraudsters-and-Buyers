@@ -6,7 +6,7 @@ CLOSE_TO_ONE = 1 - np.finfo(np.float128).epsneg
 POSITIVE_INF = np.inf
 class DynamicalSystem():
     # CONSTRUCTOR
-    def __init__(self, params, state):
+    def __init__(self, params, state, type="nondimensionalized"):
         '''
         Args:
             params (dict): A dictionary of system parameters containing:
@@ -34,9 +34,14 @@ class DynamicalSystem():
                 * E (float128): Fishing effort.
                 * F (float128): Current level of fraud.
                 * FP (float128): Public perception of fraud.
+            type: A string indicating the type of system to be initialized.
+                Expected values:
+                * "nondimensionalized": Initializes the system in nondimensionalized form.
+                * "dimensionalized": Initializes the system in dimensionalized form.
         '''
         self._params = {}
         self._state = {}
+        self._type = type
         
         self.params = params
         self.state = state
@@ -342,25 +347,26 @@ class DynamicalSystem():
             'FP_dimful': FP_next_dimful
         }
     def time_series_plot(self, time, title="", x_label="", y_label="", ax=None) -> dict:
-        # Initializing the nondim state variable vectors
-        seafood_nondim = np.array(self.state['S'], dtype=np.float128)
-        effort_nondim = np.array(self.state['E'], dtype=np.float128)
-        fraudsters_nondim = np.array(self.state['F'], dtype=np.float128)
-        p_fraudsters_nondim = np.array(self.state['FP'], dtype=np.float128)
         
-        # Initializing the dimful state variable vectors
-        seafood_dimful = np.array(self.state['S'], dtype=np.float128)
-        effort_dimful = np.array(self.state['E'], dtype=np.float128)
-        fraudsters_dimful = np.array(self.state['F'], dtype=np.float128)
-        p_fraudsters_dimful = np.array(self.state['FP'], dtype=np.float128)
+        if self.type == "nondimensionalized":
+            # Initializing the nondim state variable vectors
+            seafood_nondim = np.array(self.state['S'], dtype=np.float128)
+            effort_nondim = np.array(self.state['E'], dtype=np.float128)
+            fraudsters_nondim = np.array(self.state['F'], dtype=np.float128)
+            p_fraudsters_nondim = np.array(self.state['FP'], dtype=np.float128)
+            
+            nondim_market_price = np.array(self.nondim_market_price(), dtype=np.float128)
+            nondim_wholesale_price = np.array(self.nondim_wholesale_price(), dtype=np.float128)
+        elif self.type == "dimensionalized":
+            # Initializing the dimful state variable vectors
+            seafood_dimful = np.array(self.state['S'], dtype=np.float128)
+            effort_dimful = np.array(self.state['E'], dtype=np.float128)
+            fraudsters_dimful = np.array(self.state['F'], dtype=np.float128)
+            p_fraudsters_dimful = np.array(self.state['FP'], dtype=np.float128)
         
-        # Calculate initial prices for time = 0
-        harvest_arr = np.array(self.harvest(), dtype=np.float128)
-        market_price_arr = np.array(self.market_price(), dtype=np.float128)
-        wholesale_price_arr = np.array(self.wholesale_price(), dtype=np.float128)
-        
-        nondim_market_price = np.array(self.nondim_market_price(), dtype=np.float128)
-        nondim_wholesale_price = np.array(self.nondim_wholesale_price(), dtype=np.float128)
+            harvest_arr = np.array(self.harvest(), dtype=np.float128)
+            market_price_arr = np.array(self.market_price(), dtype=np.float128)
+            wholesale_price_arr = np.array(self.wholesale_price(), dtype=np.float128)
         
         # Filling the state variable vectors
         time_steps = []
@@ -370,45 +376,48 @@ class DynamicalSystem():
             
             # Update state
             self.state = {'S': result['S_nondim'], 'E': result['E_nondim'], 'F': result['F_nondim'], 'FP': result['FP_nondim']}
-            
-            # Update nondimensionalized state variables
-            seafood_nondim = np.append(seafood_nondim, result['S_nondim'])
-            effort_nondim = np.append(effort_nondim, result['E_nondim'])
-            fraudsters_nondim = np.append(fraudsters_nondim, result['F_nondim'])
-            p_fraudsters_nondim = np.append(p_fraudsters_nondim, result['FP_nondim'])
-            
-            # Update dimensionalized state variables
-            seafood_dimful = np.append(seafood_dimful, result['S_dimful'])
-            effort_dimful = np.append(effort_dimful, result['E_dimful'])
-            fraudsters_dimful = np.append(fraudsters_dimful, result['F_dimful'])
-            p_fraudsters_dimful = np.append(p_fraudsters_dimful, result['FP_dimful'])
-            
-            # Append new prices
-            market_price_arr = np.append(market_price_arr, result['market_price'])
-            wholesale_price_arr = np.append(wholesale_price_arr, result['wholesale_price'])
-            harvest_arr = np.append(harvest_arr, result['harvest'])
-            
-            nondim_market_price = np.append(nondim_market_price, result['nondim_market_price'])
-            nondim_wholesale_price = np.append(nondim_wholesale_price, result['nondim_wholesale_price'])
-            
+            if self.type == "nondimensionalized":
+                # Update nondimensionalized state variables
+                seafood_nondim = np.append(seafood_nondim, result['S_nondim'])
+                effort_nondim = np.append(effort_nondim, result['E_nondim'])
+                fraudsters_nondim = np.append(fraudsters_nondim, result['F_nondim'])
+                p_fraudsters_nondim = np.append(p_fraudsters_nondim, result['FP_nondim'])
+                
+                nondim_market_price = np.append(nondim_market_price, result['nondim_market_price'])
+                nondim_wholesale_price = np.append(nondim_wholesale_price, result['nondim_wholesale_price'])
+            elif self.type == "dimensionalized":
+                # Update dimensionalized state variables
+                seafood_dimful = np.append(seafood_dimful, result['S_dimful'])
+                effort_dimful = np.append(effort_dimful, result['E_dimful'])
+                fraudsters_dimful = np.append(fraudsters_dimful, result['F_dimful'])
+                p_fraudsters_dimful = np.append(p_fraudsters_dimful, result['FP_dimful'])            
+                
+                market_price_arr = np.append(market_price_arr, result['market_price'])
+                wholesale_price_arr = np.append(wholesale_price_arr, result['wholesale_price'])
+                harvest_arr = np.append(harvest_arr, result['harvest'])
         time_steps.append(time)
-            
-        return {
-            'Seafood Nondim': seafood_nondim,
-            'Effort Nondim': effort_nondim,
-            'Fraudsters Nondim': fraudsters_nondim,
-            'Perception of Fraud Nondim': p_fraudsters_nondim,
-            'Nondim Market Price': nondim_market_price,
-            'Nondim Wholesale Price': nondim_wholesale_price,
-            
-            'Market Price': market_price_arr,
-            'Wholesale Price': wholesale_price_arr,
-            'Harvest': harvest_arr,
-            'Seafood Dimful': seafood_dimful,
-            'Effort Dimful': effort_dimful,
-            'Fraudsters Dimful': fraudsters_dimful,
-            'Perception of Fraud Dimful': p_fraudsters_dimful,
-        }
+        
+        if self.type == "nondimensionalized":
+            return {
+                'Seafood': seafood_nondim,
+                'Effort': effort_nondim,
+                'Fraudsters': fraudsters_nondim,
+                'Perception of Fraud': p_fraudsters_nondim,
+                'Nondim Market Price': nondim_market_price,
+                'Nondim Wholesale Price': nondim_wholesale_price,
+            }
+        elif self.type == "dimensionalized":
+            return {
+                'Seafood': seafood_dimful,
+                'Effort': effort_dimful,
+                'Fraudsters': fraudsters_dimful,
+                'Perception of Fraud': p_fraudsters_dimful,
+                'Market Price': market_price_arr,
+                'Wholesale Price': wholesale_price_arr,
+                'Harvest': harvest_arr,
+            }
+        else:
+            raise ValueError(f"Invalid system type: {self.type}")
         
     def bifurcation_plot(self, ax, init_vals, param_name, param_range, resolution, time, y_state_var):
         transient = int(time - (0.25 * time))
@@ -536,6 +545,10 @@ class DynamicalSystem():
     @params.setter
     def params(self, value):
         self._params = value
+        
+    @property
+    def type(self):
+        return self._type
         
     @property
     def nondim_params(self):

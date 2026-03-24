@@ -66,3 +66,12 @@ INTRO = r'''
 
     Furthermore, as mentioned earlier, $D_{t}$ shrinks as $F^{p}_{t}$ increases. $D_{t}$'s sensitivity to fluctuating $F^{p}_{t}$ is given by $ϵ_{d}$, noted as the elasticity of demand against the perception of fraud. At a lower level of $ϵ_{d}$, fluctuating $F^{p}_{t}$ levels doesn't change demand much. At a higher level of $ϵ_{d}$, slight fluctuations in $F^{p}_{t}$ levels changes demand greatly. Because demand is also based off of the market price, it also takes into account the actual amount of supply available to purchase. Similar to $ϵ_{s, w}$ mentioned earlier, $ϵ_{s,m}$ represents the market prices' sensitivity to fluctuating seafood supply/harvest ($H_{t}$) levels. At a low level, prices don't fluctuate as much. At a high level, prices fluctuate greatly as $H_{t}$ changes.
 '''
+
+SEAFOOD_EFFORT = r'''
+    $
+    S_{t+1} = S_{t}e^{\gamma_{S}(r(1-\frac{S_{t}}{K}) - qE_{t})} \\
+    E_{t+1} = E_{t}e^{\gamma_{E}(qP^{w}_{t}S_{t} - C_{t})}
+    $
+    
+    
+'''
