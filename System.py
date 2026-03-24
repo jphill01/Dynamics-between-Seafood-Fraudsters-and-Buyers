@@ -42,7 +42,7 @@ class DynamicalSystem():
         self.state = state
     
     # STATE VARIABLES (nondimensionalized)
-    def seafood_state(self):
+    def seafood_state_nondim(self):
         S = self.state['S']
         E = self.state['E']
         gamma_s = self.nondim_params['gamma_s']
@@ -59,7 +59,7 @@ class DynamicalSystem():
         )[0]
 
         return S_next
-    def effort_state(self): 
+    def effort_state_nondim(self): 
         S = self.state['S']
         E = self.state['E']
         F = self.state['F']
@@ -74,7 +74,7 @@ class DynamicalSystem():
         denom_e = (gamma_p * E * S ) ** e_sw
         term_2 = (q * S * (term_1 / denom_e))
         term_3 = (F * (c - 1)) + 1
-        
+                
         '''
             Artificially create a floor near 0+.
             Reduces risk of numerical imprecisions 
@@ -87,7 +87,7 @@ class DynamicalSystem():
         )[0]
         
         return E_next
-    def fraudster_state(self):
+    def fraudster_state_nondim(self):
         S = self.state['S']
         E = self.state['E']
         F = self.state['F']
@@ -141,7 +141,7 @@ class DynamicalSystem():
             for w in recorded_warnings:
                 print(f"- Message: {w.message}, Category: {w.category.__name__}")
         return F_next
-    def p_fraudster_state(self): 
+    def p_fraudster_state_nondim(self): 
         F = self.state['F']
         FP = self.state['FP']
         F_threshold = self.nondim_params['F_threshold']
@@ -161,7 +161,62 @@ class DynamicalSystem():
         )[0]
         
         return FP_next
+    
+    # STATE VARIABLES (dimensionful)
+    def seafood_state_dimful(self):
+        S = self.state['S']
+        E = self.state['E']
+        r = self.params['r']
+        K = self.params['K']
+        q = self.params['q']
+        gamma_s = self.params['gamma_s']
         
+        '''
+            Artificially create a floor near 0+.
+            Reduces risk of numerical imprecisions 
+            (and values reaching areas they shouldn't reach).
+        '''
+        S_next = np.clip(
+            [S * np.exp(gamma_s * r * (1 - S / K) - q * E)],
+            np.finfo(np.float128).eps,
+            POSITIVE_INF
+        )[0]
+
+        return S_next
+    def effort_state_dimful(self):
+        S = self.state['S']
+        E = self.state['E']
+        q = self.params['q']
+        gamma_e = self.params['gamma_e']
+                
+        Pw = self.wholesale_price()
+        C = self.cost()
+                
+        E_next = np.clip(
+            [E * np.exp(gamma_e * (q * Pw * S - C))],
+            CLOSE_TO_ZERO,
+            POSITIVE_INF
+        )[0]
+        
+        return E_next
+    def fraudster_state_dimful(self):
+        F = self.state['F']
+        gamma_f = self.params['gamma_f']
+        
+        pm = self.market_price()
+        pw = self.wholesale_price()
+        delta = gamma_f * (pm - pw)
+        
+        return np.clip([F * np.exp(delta) / (1 + F * (np.exp(delta) - 1))], CLOSE_TO_ZERO, CLOSE_TO_ONE)[0]
+    def p_fraudster_state_dimful(self):
+        F = self.state['F']
+        FP = self.state['FP']
+        F_threshold = self.params['F_threshold']
+        gamma_fp = self.params['gamma_fp']
+        exp_delta_fp = np.exp(gamma_fp * (F - F_threshold))
+        
+        return np.clip([FP * exp_delta_fp / (1 + FP * (exp_delta_fp - 1))], CLOSE_TO_ZERO, CLOSE_TO_ONE)[0]
+    
     # VARIABLES (dimensionful)
     def harvest(self):
         S = self.state['S']
@@ -212,6 +267,12 @@ class DynamicalSystem():
             (and values reaching areas they shouldn't reach).
         '''
         return np.clip([(F*(pw1 - pw0) + pw0) / H**e_sw], np.finfo(type(F)).eps, np.inf)[0]
+    def cost(self):
+        F = self.state['F']
+        c0 = self.params['c0']
+        c1 = self.params['c1']
+        
+        return F * (c1 - c0) + c0
     
     # TESTING
     def nondim_market_price(self):
@@ -254,29 +315,44 @@ class DynamicalSystem():
         nondim_market_price = self.nondim_market_price()
         nondim_wholesale_price = self.nondim_wholesale_price()
         
-        S_next = self.seafood_state()
-        E_next = self.effort_state()
-        F_next = self.fraudster_state()
-        FP_next = self.p_fraudster_state()
+        S_next_nondim = self.seafood_state_nondim()
+        E_next_nondim = self.effort_state_nondim()
+        F_next_nondim = self.fraudster_state_nondim()
+        FP_next_nondim = self.p_fraudster_state_nondim()
+        
+        S_next_dimful = self.seafood_state_dimful()
+        E_next_dimful = self.effort_state_dimful()
+        F_next_dimful = self.fraudster_state_dimful()
+        FP_next_dimful = self.p_fraudster_state_dimful()
         
         return {
-            'S': S_next,
-            'E': E_next,
-            'F': F_next,
-            'FP': FP_next,
+            'S_nondim': S_next_nondim,
+            'E_nondim': E_next_nondim,
+            'F_nondim': F_next_nondim,
+            'FP_nondim': FP_next_nondim,
             'market_price': market_price,
             'wholesale_price': wholesale_price,
             'harvest': harvest,
             'demand': demand,
             'nondim_market_price': nondim_market_price,
-            'nondim_wholesale_price': nondim_wholesale_price
+            'nondim_wholesale_price': nondim_wholesale_price,
+            'S_dimful': S_next_dimful,
+            'E_dimful': E_next_dimful,
+            'F_dimful': F_next_dimful,
+            'FP_dimful': FP_next_dimful
         }
     def time_series_plot(self, time, title="", x_label="", y_label="", ax=None) -> dict:
-        # Initializing the state variable vectors
-        seafood = np.array(self.state['S'], dtype=np.float128)
-        effort = np.array(self.state['E'], dtype=np.float128)
-        fraudsters = np.array(self.state['F'], dtype=np.float128)
-        p_fraudsters = np.array(self.state['FP'], dtype=np.float128)
+        # Initializing the nondim state variable vectors
+        seafood_nondim = np.array(self.state['S'], dtype=np.float128)
+        effort_nondim = np.array(self.state['E'], dtype=np.float128)
+        fraudsters_nondim = np.array(self.state['F'], dtype=np.float128)
+        p_fraudsters_nondim = np.array(self.state['FP'], dtype=np.float128)
+        
+        # Initializing the dimful state variable vectors
+        seafood_dimful = np.array(self.state['S'], dtype=np.float128)
+        effort_dimful = np.array(self.state['E'], dtype=np.float128)
+        fraudsters_dimful = np.array(self.state['F'], dtype=np.float128)
+        p_fraudsters_dimful = np.array(self.state['FP'], dtype=np.float128)
         
         # Calculate initial prices for time = 0
         harvest_arr = np.array(self.harvest(), dtype=np.float128)
@@ -293,11 +369,19 @@ class DynamicalSystem():
             result = self.system_map()
             
             # Update state
-            self.state = {'S': result['S'], 'E': result['E'], 'F': result['F'], 'FP': result['FP']}
-            seafood = np.append(seafood, result['S'])
-            effort = np.append(effort, result['E'])
-            fraudsters = np.append(fraudsters, result['F'])
-            p_fraudsters = np.append(p_fraudsters, result['FP'])
+            self.state = {'S': result['S_nondim'], 'E': result['E_nondim'], 'F': result['F_nondim'], 'FP': result['FP_nondim']}
+            
+            # Update nondimensionalized state variables
+            seafood_nondim = np.append(seafood_nondim, result['S_nondim'])
+            effort_nondim = np.append(effort_nondim, result['E_nondim'])
+            fraudsters_nondim = np.append(fraudsters_nondim, result['F_nondim'])
+            p_fraudsters_nondim = np.append(p_fraudsters_nondim, result['FP_nondim'])
+            
+            # Update dimensionalized state variables
+            seafood_dimful = np.append(seafood_dimful, result['S_dimful'])
+            effort_dimful = np.append(effort_dimful, result['E_dimful'])
+            fraudsters_dimful = np.append(fraudsters_dimful, result['F_dimful'])
+            p_fraudsters_dimful = np.append(p_fraudsters_dimful, result['FP_dimful'])
             
             # Append new prices
             market_price_arr = np.append(market_price_arr, result['market_price'])
@@ -308,36 +392,24 @@ class DynamicalSystem():
             nondim_wholesale_price = np.append(nondim_wholesale_price, result['nondim_wholesale_price'])
             
         time_steps.append(time)
-        
-        if ax is not None:
-            # Set plot labels
-            ax.set_title(title)
-            ax.set_xlabel(x_label)
-            ax.set_ylabel(y_label)
-            
-            # Plot vectors
-            ax.plot(time_steps, seafood, label='Seafood (S)', color='blue', linewidth=2)
-            ax.plot(time_steps, effort, label='Effort (E)', color='green', linewidth=2)
-            ax.plot(time_steps, fraudsters, label='Fraud (F)', color='red', linewidth=2)
-            ax.plot(time_steps, p_fraudsters, label='Perception (FP)', color='pink', linewidth=2)
-            
-            # # Plot prices as dashed lines
-            # ax.plot(time_steps, market_price_arr, label='Market Price', color='orange', linewidth=2, linestyle='--')
-            # ax.plot(time_steps, wholesale_price_arr, label='Wholesale Price', color='purple', linewidth=2, linestyle='--')
-            
-            ax.grid(True)
             
         return {
-            'Seafood': seafood,
-            'Effort': effort,
-            'Fraudsters': fraudsters,
-            'Perception of Fraud': p_fraudsters,
+            'Seafood Nondim': seafood_nondim,
+            'Effort Nondim': effort_nondim,
+            'Fraudsters Nondim': fraudsters_nondim,
+            'Perception of Fraud Nondim': p_fraudsters_nondim,
+            'Nondim Market Price': nondim_market_price,
+            'Nondim Wholesale Price': nondim_wholesale_price,
+            
             'Market Price': market_price_arr,
             'Wholesale Price': wholesale_price_arr,
             'Harvest': harvest_arr,
-            'Nondim Market Price': nondim_market_price,
-            'Nondim Wholesale Price': nondim_wholesale_price
+            'Seafood Dimful': seafood_dimful,
+            'Effort Dimful': effort_dimful,
+            'Fraudsters Dimful': fraudsters_dimful,
+            'Perception of Fraud Dimful': p_fraudsters_dimful,
         }
+        
     def bifurcation_plot(self, ax, init_vals, param_name, param_range, resolution, time, y_state_var):
         transient = int(time - (0.25 * time))
         
@@ -464,10 +536,10 @@ class DynamicalSystem():
     @params.setter
     def params(self, value):
         self._params = value
-    
+        
     @property
     def nondim_params(self):
-        params = self.params
+        params = self.params.copy()
         return {
             'gamma_m': params['gamma_m'] / (params['pw0'] * (params['r'] * params['K']) ** (params['e_sm'] / 2.0)),
             'gamma_p': params['gamma_p'] * params['r'] * params['K'],

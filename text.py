@@ -14,8 +14,8 @@ INTRO = r'''
     The relationship between fishers and seafood is shown through the effort $(E)$ of fishers in harvesting seafood $(S)$. Seafood has an intrinsic growth rate $(r)$ and some intrinsic carrying capacity $(K)$. Fishers' effort grows when the cost of fishing $(C_{t})$ decreases, and the revenue of fishing $(qP^{w}_{t}S_{t})$ increases, where $q$ represents seafood catchability and $P^{w}_{t}$ represents the price per unit of seafood. In other words, effort grows when their profit margin expands. As effort grows, they harvest more seafood ($qE_{t}$), regualting/decreasing seafood levels, vice versa. The relationship between effort and seafood is shown through:
     
     $
-    S_{t+1} = S_{t}e^{r(1-\frac{S_{t}}{K}) - qE_{t}} \\
-    E_{t+1} = E_{t}e^{qP^{w}_{t}S_{t} - C_{t}}
+    S_{t+1} = S_{t}e^{\gamma_{S}(r(1-\frac{S_{t}}{K}) - qE_{t})} \\
+    E_{t+1} = E_{t}e^{\gamma_{E}(qP^{w}_{t}S_{t} - C_{t})}
     $
     
     In this system, $K$ is always set to one, such that bounding seafood between zero and one allows for a more simple mathematical analysis of the system. It's easier define as well: seafood at one representing natural maximum amount of seafood the environment can carry, and seafood at zero representing extinction.
@@ -38,7 +38,7 @@ INTRO = r'''
 
     $
     C_{t} = (C_{1}-C_{0})F_{t} + C_{0}\\
-    P^{w}_{t} = \frac{(P^{w}_{1}-P^{w}_{0})F_{t} + P^{w}_{0}}{H^{ϵ_{s, w}}}
+    P^{w}_{t} = \frac{(P^{w}_{1}-P^{w}_{0})F_{t} + P^{w}_{0}}{(\gamma_{p}H_{t})^{ϵ_{s, w}}}
     $
     
     Where the subscipt of one represents the cost of fishing and/or wholesale price when 100 percent of wholesalers are fraudsters, and zero represents the cost of fishing and/or wholesale price when zero percent of wholesalers are fraudsters. $ϵ_{s, w}$ represents the supply elasticity - how sensitive the wholesale price of fish is to the given supply.
@@ -58,7 +58,7 @@ INTRO = r'''
     
     $
     F^{P}_{t+1} = \frac{F^{p}_{t}e^{F_{t} - \hat{F}}}{1+F^{p}_{t}(e^{F_{t} - \hat{F}}-1)}\\
-    D_{t} = \frac{(1-F^{p}_{t})^{ϵ_{d}}}{P^{m}_{t}} = \sqrt{(1-F^{p}_{t})^{ϵ_{d}}H_{t}^{ϵ_{s, m}}}\\
+    D_{t} = \frac{\gamma_{d}(1-F^{p}_{t})^{ϵ_{d}}}{P^{m}_{t}} = \sqrt{\gamma_{d}(1-F^{p}_{t})^{ϵ_{d}}H_{t}^{ϵ_{s, m}}}\\
     P^{m}_{t} = (\frac{D_{t}}{H_{t}^{ϵ_{s, m}}}) = \sqrt{\frac{(1-F^{p}_{t})^{ϵ_{d}}}{H_{t}^{ϵ_{s, m}}}}
     $
     

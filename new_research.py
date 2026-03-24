@@ -33,39 +33,39 @@ init_state = {
 }
 
 '''
-When Fraud has no effect
+What if Fraudsters didn't exist?
 '''
 if True:
     params = default_params.copy()
-    params['c1'] = params['c0']
-    params['pw1'] = params['pw0']
-    params['F_threshold'] = 0.01
+    # params['c1'] = params['c0']
+    # params['pw1'] = params['pw0']
+    # params['F_threshold'] = 0.01
     system = DynamicalSystem(
         params=params,
         state=init_state
     )
     
     fig, ax = plt.subplots(figsize=(10, 6))
-    ts_data = system.time_series_plot(time=500, title="System Dynamics over Time", x_label="Time", y_label="State", ax=ax)
-    
+    ts_data = system.time_series_plot(time=500)
+
     # Plot State Variables on the primary Y-axis
-    l1 = ax.plot(ts_data['Seafood'], label='Seafood (S)', color='blue')
-    l2 = ax.plot(ts_data['Effort'], label='Effort (E)', color='green')
-    l3 = ax.plot(ts_data['Fraudsters'], label='Fraudsters (F)', color='red')
-    l4 = ax.plot(ts_data['Perception of Fraud'], label='Perception (FP)', color='pink')
-    l5 = ax.plot(ts_data['Harvest'], label='Harvest', color='brown')
+    l1 = ax.plot(ts_data['Seafood Nondim'], label='Seafood (S)', color='blue')
+    l2 = ax.plot(ts_data['Effort Nondim'], label='Effort (E)', color='green') 
+    l3 = ax.plot(ts_data['Fraudsters Nondim'], label='Fraudsters (F)', color='red')
+    l4 = ax.plot(ts_data['Perception of Fraud Nondim'], label='Perception (FP)', color='pink')
+    # l5 = ax.plot(ts_data['Harvest'], label='Harvest', color='brown')
     ax.set_ylabel('State [0, 1]')
     
     # Create a secondary Y-axis for the Prices
-    ax2 = ax.twinx()
+    # ax2 = ax.twinx()
     # l6 = ax2.plot(ts_data['Market Price'], label='Market Price', color='orange', linestyle='--')
     # l7 = ax2.plot(ts_data['Wholesale Price'], label='Wholesale Price', color='purple', linestyle='--')
-    l8 = ax2.plot(ts_data['Nondim Market Price'], label='Nondim Market Price', color='orange', linestyle='--')
-    l9 = ax2.plot(ts_data['Nondim Wholesale Price'], label='Nondim Wholesale Price', color='purple', linestyle='--')
-    ax2.set_ylabel('Price ($)')
+    # l8 = ax2.plot(ts_data['Nondim Market Price'], label='Nondim Market Price', color='orange', linestyle='--')
+    # l9 = ax2.plot(ts_data['Nondim Wholesale Price'], label='Nondim Wholesale Price', color='purple', linestyle='--')
+    # ax2.set_ylabel('Price ($)')
     
     # Combine legends from both axes    
-    lines = l1 + l2 + l3 + l4 + l5 + l8 + l9
+    lines = l1 + l2 + l3 + l4
     labels = [l.get_label() for l in lines]
     ax.legend(lines, labels, loc='upper right', fontsize='small')
     
