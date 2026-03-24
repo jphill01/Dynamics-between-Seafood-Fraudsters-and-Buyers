@@ -46,7 +46,7 @@ INTRO = r'''
     Because fraudsters are looking to maximize their profit margins, the fraudster equation is given as such:
     
     $
-    F_{t+1} = \frac{F_{t}e^{P^{m}_{t} - P^{w}_{t}}}{1+F_{t}(e^{P^{m}_{t} - P^{w}_{t}}-1)}
+    F_{t+1} = \frac{F_{t}e^{\gamma_{F}(\gamma_{M}P^{m}_{t} - P^{w}_{t})}}{1+F_{t}(e^{\gamma_{F}(\gamma_{M}P^{m}_{t} - P^{w}_{t}})-1)}
     $
     
     The fraudsters equation follows a logistic-like function that bounds $F_{t}$ between zero and one. This allows the fraudsters to be represented as a proportion of the total amount of wholesalers within the seafood supply chain. $F_{t}$ equaling one means that every wholesaler is fraudulent, and $F_{t}$ equaling zero means that every wholesaler is honest.
@@ -57,8 +57,8 @@ INTRO = r'''
     Thus, we are introduced to these equations:
     
     $
-    F^{P}_{t+1} = \frac{F^{p}_{t}e^{F_{t} - \hat{F}}}{1+F^{p}_{t}(e^{F_{t} - \hat{F}}-1)}\\
-    D_{t} = \frac{\gamma_{d}(1-F^{p}_{t})^{ϵ_{d}}}{P^{m}_{t}} = \sqrt{\gamma_{d}(1-F^{p}_{t})^{ϵ_{d}}H_{t}^{ϵ_{s, m}}}\\
+    F^{P}_{t+1} = \frac{F^{p}_{t}e^{\gamma_{FP}(F_{t} - \hat{F})}}{1+F^{p}_{t}(e^{\gamma_{FP}(F_{t} - \hat{F}})-1)}\\
+    D_{t} = \frac{(1-F^{p}_{t})^{ϵ_{d}}}{P^{m}_{t}} = \sqrt{(1-F^{p}_{t})^{ϵ_{d}}H_{t}^{ϵ_{s, m}}}\\
     P^{m}_{t} = (\frac{D_{t}}{H_{t}^{ϵ_{s, m}}}) = \sqrt{\frac{(1-F^{p}_{t})^{ϵ_{d}}}{H_{t}^{ϵ_{s, m}}}}
     $
     
