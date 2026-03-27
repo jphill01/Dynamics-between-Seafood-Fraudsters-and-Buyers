@@ -4,9 +4,30 @@ import warnings
 CLOSE_TO_ZERO = np.finfo(np.float128).eps
 CLOSE_TO_ONE = 1 - np.finfo(np.float128).epsneg
 POSITIVE_INF = np.inf
+DEFAULT_PARAMS = {
+    'gamma_m': 5.0,
+    'gamma_f': 1.0,
+    'gamma_s': 1.0,
+    'gamma_e': 0.225,
+    'gamma_p': 1.0,
+    'gamma_fp': 1.0,
+    'e_d': 1.0,
+    'e_sw': 1.0,
+    'e_sm': 1.0,
+    'K': 1.0,
+    
+    'F_threshold': 0.5,
+    'q': 0.07,
+    'r': 0.225,
+    'pw0': 1.0,
+    'c0': 0.9, # Chosen to be illustative
+    
+    'pw1': 0.81,
+    'c1': 0.153
+}
 class DynamicalSystem():
     # CONSTRUCTOR
-    def __init__(self, params, state):
+    def __init__(self, params, state, type="nondimensionalized"):
         '''
         Args:
             params (dict): A dictionary of system parameters containing:
@@ -34,11 +55,16 @@ class DynamicalSystem():
                 * E (float128): Fishing effort.
                 * F (float128): Current level of fraud.
                 * FP (float128): Public perception of fraud.
+            type: A string indicating the type of system to be initialized.
+                Expected values:
+                * "nondimensionalized": Initializes the system in nondimensionalized form.
+                * "dimensionalized": Initializes the system in dimensionalized form.
         '''
         self._params = {}
         self._state = {}
+        self._type = type
         
-        self.params = params
+        self.params = params if params is not None else DEFAULT_PARAMS
         self.state = state
     
     # STATE VARIABLES (nondimensionalized)
@@ -259,6 +285,7 @@ class DynamicalSystem():
         pw0 = self.params['pw0']
         pw1 = self.params['pw1']
         e_sw = self.params['e_sw']
+        gamma_p = self.params['gamma_p']
         H = self.harvest()
         
         '''
@@ -266,7 +293,7 @@ class DynamicalSystem():
             Reduces risk of numerical imprecisions 
             (and values reaching areas they shouldn't reach).
         '''
-        return np.clip([(F*(pw1 - pw0) + pw0) / H**e_sw], np.finfo(type(F)).eps, np.inf)[0]
+        return np.clip([(F*(pw1 - pw0) + pw0) / ((gamma_p * H)**e_sw)], np.finfo(type(F)).eps, np.inf)[0]
     def cost(self):
         F = self.state['F']
         c0 = self.params['c0']
@@ -342,25 +369,26 @@ class DynamicalSystem():
             'FP_dimful': FP_next_dimful
         }
     def time_series_plot(self, time, title="", x_label="", y_label="", ax=None) -> dict:
-        # Initializing the nondim state variable vectors
-        seafood_nondim = np.array(self.state['S'], dtype=np.float128)
-        effort_nondim = np.array(self.state['E'], dtype=np.float128)
-        fraudsters_nondim = np.array(self.state['F'], dtype=np.float128)
-        p_fraudsters_nondim = np.array(self.state['FP'], dtype=np.float128)
         
-        # Initializing the dimful state variable vectors
-        seafood_dimful = np.array(self.state['S'], dtype=np.float128)
-        effort_dimful = np.array(self.state['E'], dtype=np.float128)
-        fraudsters_dimful = np.array(self.state['F'], dtype=np.float128)
-        p_fraudsters_dimful = np.array(self.state['FP'], dtype=np.float128)
+        if self.type == "nondimensionalized":
+            # Initializing the nondim state variable vectors
+            seafood_nondim = np.array(self.state['S'], dtype=np.float128)
+            effort_nondim = np.array(self.state['E'], dtype=np.float128)
+            fraudsters_nondim = np.array(self.state['F'], dtype=np.float128)
+            p_fraudsters_nondim = np.array(self.state['FP'], dtype=np.float128)
+            
+            nondim_market_price = np.array(self.nondim_market_price(), dtype=np.float128)
+            nondim_wholesale_price = np.array(self.nondim_wholesale_price(), dtype=np.float128)
+        elif self.type == "dimensionalized":
+            # Initializing the dimful state variable vectors
+            seafood_dimful = np.array(self.state['S'], dtype=np.float128)
+            effort_dimful = np.array(self.state['E'], dtype=np.float128)
+            fraudsters_dimful = np.array(self.state['F'], dtype=np.float128)
+            p_fraudsters_dimful = np.array(self.state['FP'], dtype=np.float128)
         
-        # Calculate initial prices for time = 0
-        harvest_arr = np.array(self.harvest(), dtype=np.float128)
-        market_price_arr = np.array(self.market_price(), dtype=np.float128)
-        wholesale_price_arr = np.array(self.wholesale_price(), dtype=np.float128)
-        
-        nondim_market_price = np.array(self.nondim_market_price(), dtype=np.float128)
-        nondim_wholesale_price = np.array(self.nondim_wholesale_price(), dtype=np.float128)
+            harvest_arr = np.array(self.harvest(), dtype=np.float128)
+            market_price_arr = np.array(self.market_price(), dtype=np.float128)
+            wholesale_price_arr = np.array(self.wholesale_price(), dtype=np.float128)
         
         # Filling the state variable vectors
         time_steps = []
@@ -370,102 +398,118 @@ class DynamicalSystem():
             
             # Update state
             self.state = {'S': result['S_nondim'], 'E': result['E_nondim'], 'F': result['F_nondim'], 'FP': result['FP_nondim']}
-            
-            # Update nondimensionalized state variables
-            seafood_nondim = np.append(seafood_nondim, result['S_nondim'])
-            effort_nondim = np.append(effort_nondim, result['E_nondim'])
-            fraudsters_nondim = np.append(fraudsters_nondim, result['F_nondim'])
-            p_fraudsters_nondim = np.append(p_fraudsters_nondim, result['FP_nondim'])
-            
-            # Update dimensionalized state variables
-            seafood_dimful = np.append(seafood_dimful, result['S_dimful'])
-            effort_dimful = np.append(effort_dimful, result['E_dimful'])
-            fraudsters_dimful = np.append(fraudsters_dimful, result['F_dimful'])
-            p_fraudsters_dimful = np.append(p_fraudsters_dimful, result['FP_dimful'])
-            
-            # Append new prices
-            market_price_arr = np.append(market_price_arr, result['market_price'])
-            wholesale_price_arr = np.append(wholesale_price_arr, result['wholesale_price'])
-            harvest_arr = np.append(harvest_arr, result['harvest'])
-            
-            nondim_market_price = np.append(nondim_market_price, result['nondim_market_price'])
-            nondim_wholesale_price = np.append(nondim_wholesale_price, result['nondim_wholesale_price'])
-            
-        time_steps.append(time)
-            
-        return {
-            'Seafood Nondim': seafood_nondim,
-            'Effort Nondim': effort_nondim,
-            'Fraudsters Nondim': fraudsters_nondim,
-            'Perception of Fraud Nondim': p_fraudsters_nondim,
-            'Nondim Market Price': nondim_market_price,
-            'Nondim Wholesale Price': nondim_wholesale_price,
-            
-            'Market Price': market_price_arr,
-            'Wholesale Price': wholesale_price_arr,
-            'Harvest': harvest_arr,
-            'Seafood Dimful': seafood_dimful,
-            'Effort Dimful': effort_dimful,
-            'Fraudsters Dimful': fraudsters_dimful,
-            'Perception of Fraud Dimful': p_fraudsters_dimful,
-        }
-        
-    def bifurcation_plot(self, ax, init_vals, param_name, param_range, resolution, time, y_state_var):
-        transient = int(time - (0.25 * time))
-        
-        def run_system():
-            trajectory = []
-            self.state = init_vals
-            
-            for t in range(time):
-                # Update
-                next = self.system_map()
-                S, E, F, FP = next['S'], next['E'], next['F'], next['FP']
-                self.state = {'S': S, 'E': E, 'F': F, 'FP': FP}
+            if self.type == "nondimensionalized":
+                # Update nondimensionalized state variables
+                seafood_nondim = np.append(seafood_nondim, result['S_nondim'])
+                effort_nondim = np.append(effort_nondim, result['E_nondim'])
+                fraudsters_nondim = np.append(fraudsters_nondim, result['F_nondim'])
+                p_fraudsters_nondim = np.append(p_fraudsters_nondim, result['FP_nondim'])
                 
-                # Store only after transient period to see steady state behavior
-                if t > transient:
-                    if y_state_var == "fraudsters":
-                        trajectory.append(F)
-                    elif y_state_var == "p_fraudsters":
-                        trajectory.append(FP)
-                    elif y_state_var == "seafood":
-                        trajectory.append(S)
-                    elif y_state_var == "effort":
-                        trajectory.append(E)
-                    
-            return trajectory
+                nondim_market_price = np.append(nondim_market_price, result['nondim_market_price'])
+                nondim_wholesale_price = np.append(nondim_wholesale_price, result['nondim_wholesale_price'])
+            elif self.type == "dimensionalized":
+                # Update dimensionalized state variables
+                seafood_dimful = np.append(seafood_dimful, result['S_dimful'])
+                effort_dimful = np.append(effort_dimful, result['E_dimful'])
+                fraudsters_dimful = np.append(fraudsters_dimful, result['F_dimful'])
+                p_fraudsters_dimful = np.append(p_fraudsters_dimful, result['FP_dimful'])            
+                
+                market_price_arr = np.append(market_price_arr, result['market_price'])
+                wholesale_price_arr = np.append(wholesale_price_arr, result['wholesale_price'])
+                harvest_arr = np.append(harvest_arr, result['harvest'])
+        time_steps.append(time)
         
-        param_values = np.linspace(param_range[0], param_range[1], resolution)
-
-        x_vals = []
-        y_vals = []
-
-        print(f"Generating Bifurcation Diagram for {param_name}...")
-
-        for val in param_values:
-            # Update param
-            current_params = self.params
-            current_params[param_name] = val
-            self.params = current_params
-                                
-            # Run
-            points = run_system()
-            
-            # Append to lists
-            for p in points:
-                x_vals.append(val)
-                y_vals.append(p)
-
-        # Plot
-        ax.scatter(x_vals, y_vals, s=0.5, c='black', alpha=0.5)
-        ax.set_title(f'Bifurcation Diagram: Impact of {param_name} on {y_state_var}')
-        ax.set_xlabel(param_name)
-        ax.set_ylabel(y_state_var)
-        ax.set_ylim([0, 1.1])
-        ax.grid(True, alpha=0.3)
-    
+        if self.type == "nondimensionalized":
+            return {
+                'Seafood': seafood_nondim,
+                'Effort': effort_nondim,
+                'Fraudsters': fraudsters_nondim,
+                'Perception of Fraud': p_fraudsters_nondim,
+                'Nondim Market Price': nondim_market_price,
+                'Nondim Wholesale Price': nondim_wholesale_price,
+            }
+        elif self.type == "dimensionalized":
+            return {
+                'Seafood': seafood_dimful,
+                'Effort': effort_dimful,
+                'Fraudsters': fraudsters_dimful,
+                'Perception of Fraud': p_fraudsters_dimful,
+                'Market Price': market_price_arr,
+                'Wholesale Price': wholesale_price_arr,
+                'Harvest': harvest_arr,
+            }
+        else:
+            raise ValueError(f"Invalid system type: {self.type}")
+        
     # SCENARIOS
+    def bioeconomic_bifucation_plot(self, r_range=(0, 4), resolution=500, time=500, burn_in=None):
+        '''
+        Compute a bifurcation diagram by sweeping the intrinsic growth rate r.
+
+        For each r value the system is run from the current initial state for
+        `time` steps.  The first `burn_in` steps are discarded as transient;
+        the remaining attractor points are collected.  The method restores the
+        original params/state before returning.
+
+        Args:
+            r_range  (tuple): (min_r, max_r) inclusive range for the sweep.
+            resolution (int): Number of r values to sample across r_range.
+            time       (int): Number of time steps to simulate per r value.
+            burn_in    (int): Steps to discard as transient (default: time // 2).
+
+        Returns:
+            dict:
+                'r' (np.ndarray): Bifurcation parameter value for every
+                                  attractor point (shape: resolution * attractor_len).
+                'S' (np.ndarray): Seafood biomass attractor points matching 'r'.
+        '''
+        if burn_in is None:
+            burn_in = time // 2
+
+        r_values = np.linspace(r_range[0], r_range[1], resolution)
+        saved_state = {k: v for k, v in self.state.items()}
+        saved_params = self.params.copy()
+
+        r_bif = []
+        S_bif = []
+
+        for r in r_values:
+            params = saved_params.copy()
+            params['r'] = r
+            self.params = params
+            self.state = {k: v for k, v in saved_state.items()}
+
+            S_trajectory = [self.state['S']]
+            for _ in range(time):
+                result = self.system_map()
+                if self._type == "dimensionalized":
+                    self.state = {
+                        'S': result['S_dimful'],
+                        'E': result['E_dimful'],
+                        'F': result['F_dimful'],
+                        'FP': result['FP_dimful'],
+                    }
+                    S_trajectory.append(result['S_dimful'])
+                else:
+                    self.state = {
+                        'S': result['S_nondim'],
+                        'E': result['E_nondim'],
+                        'F': result['F_nondim'],
+                        'FP': result['FP_nondim'],
+                    }
+                    S_trajectory.append(result['S_nondim'])
+
+            attractor = S_trajectory[burn_in:]
+            r_bif.extend([r] * len(attractor))
+            S_bif.extend(attractor)
+
+        self.params = saved_params
+        self.state = saved_state
+
+        return {
+            'r': np.array(r_bif, dtype=np.float64),
+            'S': np.array(S_bif, dtype=np.float64),
+        }
     def ed_fp_demand(self, low_harvest, high_harvest, e_ms=1, resolution=100):
         '''Set up the x and y axis (Fp and e_d respectively)'''
         FP_vals = np.linspace(0, 0.999, resolution)
@@ -536,6 +580,10 @@ class DynamicalSystem():
     @params.setter
     def params(self, value):
         self._params = value
+        
+    @property
+    def type(self):
+        return self._type
         
     @property
     def nondim_params(self):

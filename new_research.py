@@ -7,10 +7,10 @@ from System import DynamicalSystem
 default_params = {
     'gamma_m': 5.0,
     'gamma_f': 1.0,
+    'gamma_fp': 1.0,
     'gamma_s': 1.0,
     'gamma_e': 0.225,
     'gamma_p': 1.0,
-    'gamma_fp': 1.0,
     'e_d': 1.0,
     'e_sw': 1.0,
     'e_sm': 1.0,
@@ -18,7 +18,7 @@ default_params = {
     
     'F_threshold': 0.5,
     'q': 0.07,
-    'r': 0.225,
+    'r': 1.0,
     'pw0': 1.0,
     'c0': 0.9, # Chosen to be illustative
     
@@ -33,26 +33,45 @@ init_state = {
 }
 
 '''
-What if Fraudsters didn't exist?
+Bioeconomic Model - What if Fraudsters didn't exist?
+Gordon-Schaeffer Model, Yodzis PhD thesis, Fryxell 2017
+
+Seafood equation follows closely to a Ricker logistic model, with the addition of qE (fishing mortality) in the exponent.
+    Adding qE allows for the addition of instantaneous consideration of fishing mortality to the reproduction efforts of the seafood.
+    It also allows for better numerical stability, where seafood can never reach negative values.
+
+Effort equatino follows a logistic growth model, where effort is driven by profit-per-unit-effort (qSP_w - C). 
+    This highlights the idea that fraud drives individual incentives to increase effort, even if it's not sustainable in the long run.
+    Because we care about revenue and costs per unit effort, this allows fraud to enable bad actors in the fishing industry to cheat the system,
+    and even encourage others to do so.
+    
+Analysing the effects of the bioeconomic model without fraudsters is important because it allows us to understand the basic dynamics of the system.
 '''
 if True:
     params = default_params.copy()
-    # params['c1'] = params['c0']
+    params['r'] = 3.75
     # params['pw1'] = params['pw0']
     # params['F_threshold'] = 0.01
     system = DynamicalSystem(
         params=params,
-        state=init_state
+        state={
+            'S': np.float128(0.6),
+            'E': np.float128(0.3),
+            'F': np.float128(0.0),
+            'FP': np.float128(0.0)
+        },
+        type="dimensionalized"
     )
     
     fig, ax = plt.subplots(figsize=(10, 6))
     ts_data = system.time_series_plot(time=500)
 
     # Plot State Variables on the primary Y-axis
-    l1 = ax.plot(ts_data['Seafood Nondim'], label='Seafood (S)', color='blue')
-    l2 = ax.plot(ts_data['Effort Nondim'], label='Effort (E)', color='green') 
-    l3 = ax.plot(ts_data['Fraudsters Nondim'], label='Fraudsters (F)', color='red')
-    l4 = ax.plot(ts_data['Perception of Fraud Nondim'], label='Perception (FP)', color='pink')
+    l1 = ax.plot(ts_data['Seafood'], label='Seafood (S)', color='blue')
+    l2 = ax.plot(ts_data['Effort'], label='Effort (E)', color='green') 
+    l3 = ax.plot(ts_data['Fraudsters'], label='Fraudsters (F)', color='red')
+    l4 = ax.plot(ts_data['Perception of Fraud'], label='Perception (FP)', color='pink')
+    ax.set_ylim(0, 5)
     # l5 = ax.plot(ts_data['Harvest'], label='Harvest', color='brown')
     ax.set_ylabel('State [0, 1]')
     
@@ -60,8 +79,6 @@ if True:
     # ax2 = ax.twinx()
     # l6 = ax2.plot(ts_data['Market Price'], label='Market Price', color='orange', linestyle='--')
     # l7 = ax2.plot(ts_data['Wholesale Price'], label='Wholesale Price', color='purple', linestyle='--')
-    # l8 = ax2.plot(ts_data['Nondim Market Price'], label='Nondim Market Price', color='orange', linestyle='--')
-    # l9 = ax2.plot(ts_data['Nondim Wholesale Price'], label='Nondim Wholesale Price', color='purple', linestyle='--')
     # ax2.set_ylabel('Price ($)')
     
     # Combine legends from both axes    
@@ -73,6 +90,34 @@ if True:
     ax.set_xlabel('Time')
     ax.grid(True, alpha=0.3)
         
+    plt.tight_layout()
+    plt.show()
+# Bioeconomic Bifurcation Diagram
+if False:
+    params = default_params.copy()
+    system = DynamicalSystem(
+        params=params,
+        state={
+            'S': np.float128(0.6),
+            'E': np.float128(0.3),
+            'F': np.float128(0.0),
+            'FP': np.float128(0.0)
+        },
+        type="dimensionalized"
+    )
+
+    bif_data = system.bioeconomic_bifucation_plot(
+        r_range=(0, 4),
+        resolution=500,
+        time=500,
+    )
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.scatter(bif_data['r'], bif_data['S'], s=0.3, color='steelblue', alpha=0.5)
+    ax.set_xlabel('r  (intrinsic growth rate)')
+    ax.set_ylabel('Seafood biomass S  (attractor)')
+    ax.set_title('Bioeconomic Bifurcation Diagram  –  r  vs  Seafood Transient')
+    ax.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.show()
         
@@ -91,91 +136,17 @@ This could be due to a variety of reasons
 between wholesalers and fishers. Effort is still willing to grow because it's still profitable to do so, but when 
 it becomes profitable to cheat, they follow suit. However, the wholesale price will grow a lot more compared to market price, 
 fraudsters quickly alter from entering to leaving the market. This causes these spikes while effort still grows overall
+
+CASE STUDY: 
+Destructive Fishing and Fisheries Enforcement in Eastern Indonesia (Bailey and Sumaila 2015) -> This could be something with q0 and q1 where catchability fluctuates.
+
+Fraud enables bad actors in the fishing industry to cheat the system, and even encourage others to do so.
+This opens the door to IUU fishing, where fishers are entered into a realm where no rules apply.
+This opportunity leads to a certain scenarios:
+- Fishers simply are incentivized to fish more effectively using unethical fishing methods.
+  An example of this is through blast fishing, where fishers use explosives to kill fish.
+  
+
 '''
 if False:
-    system = DynamicalSystem(
-        params=default_params,
-        state=init_state
-    )
-
-    ''' STORY ABOUT PW1 V. PW0'''
-    vals = {'lower': 0.1, 'little_lower': 0.81, 'little_higher': 5.0, 'higher': 10.0}
-    nut = system.effects_of_pw1(pw1=vals)
-    fig, axs = plt.subplots(2, 2, figsize=(15, 10))
-    fig.suptitle('Effects of varying pw1')
-
-    plots_info = [
-        ('lower', f'Lower pw1 ({vals["lower"]})'),
-        ('little_lower', f'Little Lower pw1 ({vals["little_lower"]})'),
-        ('little_higher', f'Little Higher pw1 ({vals["little_higher"]})'),
-        ('higher', f'Higher pw1 ({vals["higher"]})')
-    ]
-
-    for ax, (key, title) in zip(axs.flatten(), plots_info):
-        # Plot State Variables on the primary Y-axis
-        l1 = ax.plot(nut[key]['Seafood'], label='Seafood (S)', color='blue')
-        l2 = ax.plot(nut[key]['Effort'], label='Effort (E)', color='green')
-        l3 = ax.plot(nut[key]['Fraudsters'], label='Fraudsters (F)', color='red')
-        l4 = ax.plot(nut[key]['Perception of Fraud'], label='Perception (FP)', color='pink')
-        l5 = ax.plot(nut[key]['Harvest'], label='Harvest', color='brown')
-        ax.set_ylabel('State [0, 1]')
-        
-        # Create a secondary Y-axis for the Prices
-        ax2 = ax.twinx()
-        l6 = ax2.plot(nut[key]['Market Price'], label='Market Price', color='orange', linestyle='--')
-        l7 = ax2.plot(nut[key]['Wholesale Price'], label='Wholesale Price', color='purple', linestyle='--')
-        l8 = ax2.plot(nut[key]['Nondim Market Price'], label='Nondim Market Price', color='orange', linestyle='--')
-        l9 = ax2.plot(nut[key]['Nondim Wholesale Price'], label='Nondim Wholesale Price', color='purple', linestyle='--')
-        ax2.set_ylabel('Price ($)')
-        
-        # Combine legends from both axes    
-        lines = l1 + l2 + l3 + l4 + l5 + l6 + l7 + l8 + l9
-        labels = [l.get_label() for l in lines]
-        ax.legend(lines, labels, loc='upper right', fontsize='small')
-        
-        ax.set_title(title)
-        ax.set_xlabel('Time')
-        ax.grid(True, alpha=0.3)
-        
-    plt.tight_layout()
-    plt.show()
-'''
-BIFURCATION DIAGRAMS if e_sm from 0.01 to 5.0
-'''
-if False:
-    system = DynamicalSystem(
-        params=default_params,
-        state=init_state
-    )
-    
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ts_data = system.time_series_plot(time=500, title="System Dynamics over Time", x_label="Time", y_label="State", ax=ax)
-    ax.legend()
-
-    fig, axs = plt.subplots(2, 2, figsize=(15, 10))
-    fig.suptitle('Bifurcation Diagrams for e_sm (Range: 0.01 to 5.0)')
-
-    state_vars = [
-        ('seafood', 'Seafood (S)'),
-        ('effort', 'Effort (E)'),
-        ('fraudsters', 'Fraudsters (F)'),
-        ('p_fraudsters', 'Perception of Fraud (FP)')
-    ]
-
-    init_state = {'S': 0.6, 'E': 0.3, 'F': 0.1, 'FP': 0.1}
-
-    for ax, (var, title) in zip(axs.flatten(), state_vars):
-        system.bifurcation_plot(
-            ax=ax,
-            init_vals=init_state,
-            param_name='g',
-            param_range=(0.01, 5.0),
-            resolution=300,
-            time=300,
-            y_state_var=var
-        )
-        # Overwrite title to be cleaner
-        ax.set_title(f'Impact on {title}')
-
-    plt.tight_layout()
-    plt.show()
+    pass
