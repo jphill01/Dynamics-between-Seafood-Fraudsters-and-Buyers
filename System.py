@@ -11,14 +11,17 @@ DEFAULT_PARAMS = {
     'gamma_e': 0.225,
     'gamma_p': 1.0,
     'gamma_fp': 1.0,
+    
     'e_d': 1.0,
     'e_sw': 1.0,
     'e_sm': 1.0,
-    'K': 1.0,
     
+    'K': 1.0,
     'F_threshold': 0.5,
-    'q': 0.07,
     'r': 0.225,
+    
+    'q0': 0.07,
+    'q1': 0.10,
     'pw0': 1.0,
     'c0': 0.9, # Chosen to be illustative
     
@@ -194,8 +197,9 @@ class DynamicalSystem():
         E = self.state['E']
         r = self.params['r']
         K = self.params['K']
-        q = self.params['q']
         gamma_s = self.params['gamma_s']
+        
+        q = self.catchability()
         
         '''
             Artificially create a floor near 0+.
@@ -212,14 +216,13 @@ class DynamicalSystem():
     def effort_state_dimful(self):
         S = self.state['S']
         E = self.state['E']
-        q = self.params['q']
         gamma_e = self.params['gamma_e']
                 
-        Pw = self.wholesale_price()
-        C = self.cost()
+        revenue = self.revenue_per_unit_effort()
+        cost = self.cost_per_unit_effort()
                 
         E_next = np.clip(
-            [E * np.exp(gamma_e * (q * Pw * S - C))],
+            [E * np.exp(gamma_e * (revenue - cost))],
             CLOSE_TO_ZERO,
             POSITIVE_INF
         )[0]
@@ -244,10 +247,15 @@ class DynamicalSystem():
         return np.clip([FP * exp_delta_fp / (1 + FP * (exp_delta_fp - 1))], CLOSE_TO_ZERO, CLOSE_TO_ONE)[0]
     
     # VARIABLES (dimensionful)
+    def catchability(self):
+        q0 = self.params['q0']
+        q1 = self.params['q1']
+        F = self.state['F']
+        return q0 + (q1 - q0) * F
     def harvest(self):
         S = self.state['S']
         E = self.state['E']
-        q = self.params['q']
+        q = self.catchability()
         
         '''
             Artificially create a floor near 0+.
@@ -294,278 +302,90 @@ class DynamicalSystem():
             (and values reaching areas they shouldn't reach).
         '''
         return np.clip([(F*(pw1 - pw0) + pw0) / ((gamma_p * H)**e_sw)], np.finfo(type(F)).eps, np.inf)[0]
-    def cost(self):
+    def revenue_per_unit_effort(self):
+        q = self.catchability()
+        Pw = self.wholesale_price()
+        S = self.state['S']
+        E = self.state['E']
+        return q * Pw * S
+    def cost_per_unit_effort(self):
         F = self.state['F']
         c0 = self.params['c0']
-        c1 = self.params['c1']
-        
+        c1 = self.params['c1']   
         return F * (c1 - c0) + c0
-    
-    # TESTING
-    def nondim_market_price(self):
-        FP = self.state['FP']
-        e_d = self.nondim_params['e_d']
-        e_sm = self.nondim_params['e_sm']
-        E = self.state['E']
-        S = self.state['S']
-        gamma_m = self.nondim_params['gamma_m']
-        
-        denom_market = (E * S)**(e_sm/2)
-        price_market = gamma_m * ((1 - FP)**(e_d/2) / denom_market)
-        
-        return np.clip([price_market], CLOSE_TO_ZERO, POSITIVE_INF)[0]
-    def nondim_wholesale_price(self):
-        F = self.state['F']
-        E = self.state['E']
-        S = self.state['S']
-        pw = self.nondim_params['pw']
-        e_sw = self.nondim_params['e_sw']
-        gamma_p = self.nondim_params['gamma_p']
-        
-        denom_wholesale = (gamma_p * E * S)**(e_sw)
-        price_wholesale = (F * (pw - 1) + 1) / denom_wholesale
-        
-        return np.clip([price_wholesale], CLOSE_TO_ZERO, POSITIVE_INF)[0]
-    
+      
     def system_map(self) -> dict:        
         '''
-        Get system's values for the next time step
-        
-        Returns: 
-            dict: 
+        Get system's values for the next time step.
+        Only computes the state update matching self.type to avoid
+        calling nondim/dimful functions with incompatible params.
         '''
-        # It's important to get the variables before calculating the state variables
         market_price = self.market_price()
         wholesale_price = self.wholesale_price()
+        catchability = self.catchability()
+        revenue = self.revenue_per_unit_effort()
+        cost = self.cost_per_unit_effort()
         harvest = self.harvest()
         demand = self.demand()
-        nondim_market_price = self.nondim_market_price()
-        nondim_wholesale_price = self.nondim_wholesale_price()
         
-        S_next_nondim = self.seafood_state_nondim()
-        E_next_nondim = self.effort_state_nondim()
-        F_next_nondim = self.fraudster_state_nondim()
-        FP_next_nondim = self.p_fraudster_state_nondim()
-        
-        S_next_dimful = self.seafood_state_dimful()
-        E_next_dimful = self.effort_state_dimful()
-        F_next_dimful = self.fraudster_state_dimful()
-        FP_next_dimful = self.p_fraudster_state_dimful()
+        if self.type == "dimensionalized":
+            S_next = self.seafood_state_dimful()
+            E_next = self.effort_state_dimful()
+            F_next = self.fraudster_state_dimful()
+            FP_next = self.p_fraudster_state_dimful()
+        else:
+            S_next = self.seafood_state_nondim()
+            E_next = self.effort_state_nondim()
+            F_next = self.fraudster_state_nondim()
+            FP_next = self.p_fraudster_state_nondim()
         
         return {
-            'S_nondim': S_next_nondim,
-            'E_nondim': E_next_nondim,
-            'F_nondim': F_next_nondim,
-            'FP_nondim': FP_next_nondim,
+            'S': S_next,
+            'E': E_next,
+            'F': F_next,
+            'FP': FP_next,
             'market_price': market_price,
             'wholesale_price': wholesale_price,
+            'catchability': catchability,
+            'revenue_per_unit_effort': revenue,
+            'cost_per_unit_effort': cost,
             'harvest': harvest,
             'demand': demand,
-            'nondim_market_price': nondim_market_price,
-            'nondim_wholesale_price': nondim_wholesale_price,
-            'S_dimful': S_next_dimful,
-            'E_dimful': E_next_dimful,
-            'F_dimful': F_next_dimful,
-            'FP_dimful': FP_next_dimful
         }
     def time_series_plot(self, time, title="", x_label="", y_label="", ax=None) -> dict:
+        seafood = np.array(self.state['S'], dtype=np.float128)
+        effort = np.array(self.state['E'], dtype=np.float128)
+        fraudsters = np.array(self.state['F'], dtype=np.float128)
+        p_fraudsters = np.array(self.state['FP'], dtype=np.float128)
+        harvest_arr = np.array(self.harvest(), dtype=np.float128)
+        market_price_arr = np.array(self.market_price(), dtype=np.float128)
+        wholesale_price_arr = np.array(self.wholesale_price(), dtype=np.float128)
         
-        if self.type == "nondimensionalized":
-            # Initializing the nondim state variable vectors
-            seafood_nondim = np.array(self.state['S'], dtype=np.float128)
-            effort_nondim = np.array(self.state['E'], dtype=np.float128)
-            fraudsters_nondim = np.array(self.state['F'], dtype=np.float128)
-            p_fraudsters_nondim = np.array(self.state['FP'], dtype=np.float128)
-            
-            nondim_market_price = np.array(self.nondim_market_price(), dtype=np.float128)
-            nondim_wholesale_price = np.array(self.nondim_wholesale_price(), dtype=np.float128)
-        elif self.type == "dimensionalized":
-            # Initializing the dimful state variable vectors
-            seafood_dimful = np.array(self.state['S'], dtype=np.float128)
-            effort_dimful = np.array(self.state['E'], dtype=np.float128)
-            fraudsters_dimful = np.array(self.state['F'], dtype=np.float128)
-            p_fraudsters_dimful = np.array(self.state['FP'], dtype=np.float128)
-        
-            harvest_arr = np.array(self.harvest(), dtype=np.float128)
-            market_price_arr = np.array(self.market_price(), dtype=np.float128)
-            wholesale_price_arr = np.array(self.wholesale_price(), dtype=np.float128)
-        
-        # Filling the state variable vectors
-        time_steps = []
         for i in range(time):
-            time_steps.append(i)
             result = self.system_map()
+            self.state = {
+                'S': result['S'], 'E': result['E'],
+                'F': result['F'], 'FP': result['FP'],
+            }
             
-            # Update state
-            self.state = {'S': result['S_nondim'], 'E': result['E_nondim'], 'F': result['F_nondim'], 'FP': result['FP_nondim']}
-            if self.type == "nondimensionalized":
-                # Update nondimensionalized state variables
-                seafood_nondim = np.append(seafood_nondim, result['S_nondim'])
-                effort_nondim = np.append(effort_nondim, result['E_nondim'])
-                fraudsters_nondim = np.append(fraudsters_nondim, result['F_nondim'])
-                p_fraudsters_nondim = np.append(p_fraudsters_nondim, result['FP_nondim'])
-                
-                nondim_market_price = np.append(nondim_market_price, result['nondim_market_price'])
-                nondim_wholesale_price = np.append(nondim_wholesale_price, result['nondim_wholesale_price'])
-            elif self.type == "dimensionalized":
-                # Update dimensionalized state variables
-                seafood_dimful = np.append(seafood_dimful, result['S_dimful'])
-                effort_dimful = np.append(effort_dimful, result['E_dimful'])
-                fraudsters_dimful = np.append(fraudsters_dimful, result['F_dimful'])
-                p_fraudsters_dimful = np.append(p_fraudsters_dimful, result['FP_dimful'])            
-                
-                market_price_arr = np.append(market_price_arr, result['market_price'])
-                wholesale_price_arr = np.append(wholesale_price_arr, result['wholesale_price'])
-                harvest_arr = np.append(harvest_arr, result['harvest'])
-        time_steps.append(time)
+            seafood = np.append(seafood, result['S'])
+            effort = np.append(effort, result['E'])
+            fraudsters = np.append(fraudsters, result['F'])
+            p_fraudsters = np.append(p_fraudsters, result['FP'])
+            market_price_arr = np.append(market_price_arr, result['market_price'])
+            wholesale_price_arr = np.append(wholesale_price_arr, result['wholesale_price'])
+            harvest_arr = np.append(harvest_arr, result['harvest'])
         
-        if self.type == "nondimensionalized":
-            return {
-                'Seafood': seafood_nondim,
-                'Effort': effort_nondim,
-                'Fraudsters': fraudsters_nondim,
-                'Perception of Fraud': p_fraudsters_nondim,
-                'Nondim Market Price': nondim_market_price,
-                'Nondim Wholesale Price': nondim_wholesale_price,
-            }
-        elif self.type == "dimensionalized":
-            return {
-                'Seafood': seafood_dimful,
-                'Effort': effort_dimful,
-                'Fraudsters': fraudsters_dimful,
-                'Perception of Fraud': p_fraudsters_dimful,
-                'Market Price': market_price_arr,
-                'Wholesale Price': wholesale_price_arr,
-                'Harvest': harvest_arr,
-            }
-        else:
-            raise ValueError(f"Invalid system type: {self.type}")
-        
-    # SCENARIOS
-    def bioeconomic_bifucation_plot(self, r_range=(0, 4), resolution=500, time=500, burn_in=None):
-        '''
-        Compute a bifurcation diagram by sweeping the intrinsic growth rate r.
-
-        For each r value the system is run from the current initial state for
-        `time` steps.  The first `burn_in` steps are discarded as transient;
-        the remaining attractor points are collected.  The method restores the
-        original params/state before returning.
-
-        Args:
-            r_range  (tuple): (min_r, max_r) inclusive range for the sweep.
-            resolution (int): Number of r values to sample across r_range.
-            time       (int): Number of time steps to simulate per r value.
-            burn_in    (int): Steps to discard as transient (default: time // 2).
-
-        Returns:
-            dict:
-                'r' (np.ndarray): Bifurcation parameter value for every
-                                  attractor point (shape: resolution * attractor_len).
-                'S' (np.ndarray): Seafood biomass attractor points matching 'r'.
-        '''
-        if burn_in is None:
-            burn_in = time // 2
-
-        r_values = np.linspace(r_range[0], r_range[1], resolution)
-        saved_state = {k: v for k, v in self.state.items()}
-        saved_params = self.params.copy()
-
-        r_bif = []
-        S_bif = []
-
-        for r in r_values:
-            params = saved_params.copy()
-            params['r'] = r
-            self.params = params
-            self.state = {k: v for k, v in saved_state.items()}
-
-            S_trajectory = [self.state['S']]
-            for _ in range(time):
-                result = self.system_map()
-                if self._type == "dimensionalized":
-                    self.state = {
-                        'S': result['S_dimful'],
-                        'E': result['E_dimful'],
-                        'F': result['F_dimful'],
-                        'FP': result['FP_dimful'],
-                    }
-                    S_trajectory.append(result['S_dimful'])
-                else:
-                    self.state = {
-                        'S': result['S_nondim'],
-                        'E': result['E_nondim'],
-                        'F': result['F_nondim'],
-                        'FP': result['FP_nondim'],
-                    }
-                    S_trajectory.append(result['S_nondim'])
-
-            attractor = S_trajectory[burn_in:]
-            r_bif.extend([r] * len(attractor))
-            S_bif.extend(attractor)
-
-        self.params = saved_params
-        self.state = saved_state
-
         return {
-            'r': np.array(r_bif, dtype=np.float64),
-            'S': np.array(S_bif, dtype=np.float64),
+            'Seafood': seafood,
+            'Effort': effort,
+            'Fraudsters': fraudsters,
+            'Perception of Fraud': p_fraudsters,
+            'Market Price': market_price_arr,
+            'Wholesale Price': wholesale_price_arr,
+            'Harvest': harvest_arr,
         }
-    def ed_fp_demand(self, low_harvest, high_harvest, e_ms=1, resolution=100):
-        '''Set up the x and y axis (Fp and e_d respectively)'''
-        FP_vals = np.linspace(0, 0.999, resolution)
-        e_d_vals = np.linspace(0, 5, resolution)
-        # X, Y = np.meshgrid(FP_vals, e_d_vals)
-
-        '''Initialize the revenue and cost lists'''
-        demand = np.zeros((resolution, resolution))
-        demand_2 = np.zeros((resolution, resolution))
-
-        '''Calculate the revenue and costs at every pair of seafood and fraudster levels'''
-        for i, FP in enumerate(FP_vals):
-            for j, e_d in enumerate(e_d_vals):
-                demand[j, i] = self.demand(FP=FP, H=low_harvest, e_d=e_d, e_ms=e_ms)
-                demand_2[j, i] = self.demand(FP=FP, H=high_harvest, e_d=e_d, e_ms=e_ms)
-
-        return {
-            "Low Harvest": demand,
-            "High Harvest": demand_2
-        }
-    def effects_of_pw1(self, pw1, time=40):
-        '''
-        Args: 
-            pw1: {'lower': int, 'little_lower': int, 'little_higher': int, 'higher': int}
-            time: int
-        Returns:
-            dict: {'lower': time_series, 'little_lower': time_series, 'little_higher': time_series, 'higher': time_series}
-        '''
-        ret_val = {}
-        start_state = self.state
-        p = self.params
-        p['pw1'] = pw1['lower']
-        self.params = p
-        ret_val['lower'] = self.time_series_plot(time=time, title="Lower pw1")
         
-        p = self.params
-        p['pw1'] = pw1['little_lower']
-        self.params = p
-        self.state = start_state
-        ret_val['little_lower'] = self.time_series_plot(time=time, title="Little Lower pw1")
-        
-        p = self.params
-        p['pw1'] = pw1['little_higher']
-        self.params = p
-        self.state = start_state
-        ret_val['little_higher'] = self.time_series_plot(time=time, title="Little Higher pw1")
-        
-        p = self.params
-        p['pw1'] = pw1['higher']
-        self.params = p
-        self.state = start_state
-        ret_val['higher'] = self.time_series_plot(time=time, title="Higher pw1")
-        
-        self.state = start_state
-        return ret_val
-    
     # FUNCTION PROPERTIES
     @property
     def state(self):

@@ -1,268 +1,309 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 
-from System import DynamicalSystem
+from System import DynamicalSystem, DEFAULT_PARAMS
 
-
-default_params = {
-    'gamma_m': 5.0,
-    'gamma_f': 1.0,
-    'gamma_fp': 1.0,
-    'gamma_s': 1.0,
-    'gamma_e': 0.225,
-    'gamma_p': 1.0,
-    'e_d': 1.0,
-    'e_sw': 1.0,
-    'e_sm': 1.0,
-    'K': 1.0,
-    
-    'F_threshold': 0.5,
-    'q': 0.07,
-    'r': 1.0,
-    'pw0': 1.0,
-    'c0': 0.9, # Chosen to be illustative
-    
-    'pw1': 0.81,
-    'c1': 0.153
+COLORS = {
+    'S': 'steelblue', 'E': 'seagreen', 'F': 'crimson', 'FP': 'orchid',
+    'Pw': 'darkorange', 'Pm': 'mediumpurple', 'H': 'saddlebrown',
 }
-init_state = {
-    'S': np.float128(0.6),
-    'E': np.float128(0.3),
-    'F': np.float128(0.1),
-    'FP': np.float128(0.1)
+INIT_STATE = {
+    'S': np.float128(0.6), 'E': np.float128(0.3),
+    'F': np.float128(0.1), 'FP': np.float128(0.1),
 }
-
-'''
-Bioeconomic Model - What if Fraudsters didn't exist?
-Gordon-Schaeffer Model, Yodzis PhD thesis, Fryxell 2017
-
-Seafood equation follows closely to a Ricker logistic model, with the addition of qE (fishing mortality) in the exponent.
-    Adding qE allows for the addition of instantaneous consideration of fishing mortality to the reproduction efforts of the seafood.
-    It also allows for better numerical stability, where seafood can never reach negative values.
-
-Effort equatino follows a logistic growth model, where effort is driven by profit-per-unit-effort (qSP_w - C). 
-    This highlights the idea that fraud drives individual incentives to increase effort, even if it's not sustainable in the long run.
-    Because we care about revenue and costs per unit effort, this allows fraud to enable bad actors in the fishing industry to cheat the system,
-    and even encourage others to do so.
-    
-Analysing the effects of the bioeconomic model without fraudsters is important because it allows us to understand the basic dynamics of the system.
-'''
-if True:
-    params = default_params.copy()
-    # params['r'] = 3.75
-    # params['pw1'] = params['pw0']
-    # params['F_threshold'] = 0.01
-    params['q'] = 0.01
-    system = DynamicalSystem(
-        params=params,
-        state={
-            'S': np.float128(0.6),
-            'E': np.float128(0.3),
-            'F': np.float128(0.1),
-            'FP': np.float128(0.1)
-        },
-        type="dimensionalized"
-    )
-    
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ts_data = system.time_series_plot(time=500)
-
-    # Plot State Variables on the primary Y-axis
-    l1 = ax.plot(ts_data['Seafood'], label='Seafood (S)', color='blue')
-    l2 = ax.plot(ts_data['Effort'], label='Effort (E)', color='green') 
-    l3 = ax.plot(ts_data['Fraudsters'], label='Fraudsters (F)', color='red')
-    l4 = ax.plot(ts_data['Perception of Fraud'], label='Perception (FP)', color='pink')
-    ax.set_ylim(0, 5)
-    # l5 = ax.plot(ts_data['Harvest'], label='Harvest', color='brown')
-    ax.set_ylabel('State [0, 1]')
-    
-    # Create a secondary Y-axis for the Prices
-    # ax2 = ax.twinx()
-    # l6 = ax2.plot(ts_data['Market Price'], label='Market Price', color='orange', linestyle='--')
-    # l7 = ax2.plot(ts_data['Wholesale Price'], label='Wholesale Price', color='purple', linestyle='--')
-    # ax2.set_ylabel('Price ($)')
-    
-    # Combine legends from both axes    
-    lines = l1 + l2 + l3 + l4
-    labels = [l.get_label() for l in lines]
-    ax.legend(lines, labels, loc='upper right', fontsize='small')
-    
-    ax.set_title('nuh')
-    ax.set_xlabel('Time')
-    ax.grid(True, alpha=0.3)
-        
-    plt.tight_layout()
-    plt.show()
-# Bioeconomic Bifurcation Diagram
-if False:
-    params = default_params.copy()
-    system = DynamicalSystem(
-        params=params,
-        state={
-            'S': np.float128(0.6),
-            'E': np.float128(0.3),
-            'F': np.float128(0.0),
-            'FP': np.float128(0.0)
-        },
-        type="dimensionalized"
-    )
-
-    bif_data = system.bioeconomic_bifucation_plot(
-        r_range=(0, 4),
-        resolution=500,
-        time=500,
-    )
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.scatter(bif_data['r'], bif_data['S'], s=0.3, color='steelblue', alpha=0.5)
-    ax.set_xlabel('r  (intrinsic growth rate)')
-    ax.set_ylabel('Seafood biomass S  (attractor)')
-    ax.set_title('Bioeconomic Bifurcation Diagram  –  r  vs  Seafood Transient')
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.show()
-        
-'''
-EFFECTS OF VARYING PW1
--> When pw1 is 0.1 (below c1), we see that there's no incentive for fishers to fish.
-This is because they actually earn less money fishing because the price that wholesalers
-set to purchase their catch is lower than the price that they would set for themselves.
-This could be due to a variety of reasons
-- desync between fishers and wholesalers, where the black market price to sell their catch is...
-- wholesalers are weary of buying fish from fishers because they don't know if the fish quality is maintained
-- ...
-
--> When pw1 is 10.0 (much above pw0)
-- It's still sorta like normal oscillations, but there's much more "hookie" at play when it comes to the relationship
-between wholesalers and fishers. Effort is still willing to grow because it's still profitable to do so, but when 
-it becomes profitable to cheat, they follow suit. However, the wholesale price will grow a lot more compared to market price, 
-fraudsters quickly alter from entering to leaving the market. This causes these spikes while effort still grows overall
-
-CASE STUDY: 
-Destructive Fishing and Fisheries Enforcement in Eastern Indonesia (Bailey and Sumaila 2015) -> This could be something with q0 and q1 where catchability fluctuates.
-
-Fraud enables bad actors in the fishing industry to cheat the system, and even encourage others to do so.
-This opens the door to IUU fishing, where fishers are entered into a realm where no rules apply.
-This opportunity leads to a certain scenarios:
-- Fishers simply are incentivized to fish more effectively using unethical fishing methods.
-  An example of this is through blast fishing, where fishers use explosives to kill fish.
-  
-
-'''
-if False:
-    pass
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# EEZ FRAUD SCENARIO
+# SCENARIO 1 — BASELINE BIOECONOMIC MODEL WITHOUT FRAUDSTERS
 #
-# Story: Fraudster wholesalers enable fishers to sell catch harvested outside
-# the Exclusive Economic Zone (EEZ). Fishers bear higher costs (c1 > c0) —
-# longer trips, fuel, legal risk — but receive a fraud premium (pw1 > pw0)
-# because fraudsters need the volume and absorb the legal risk of purchase.
+# Gordon-Schaefer / Ricker-style fishery: Seafood (S) and Effort (E) only.
+# F = 0, FP = 0 throughout (both are absorbing fixed points).
+# With F = 0 the system collapses to:
+#   S_{t+1} = S_t · exp( γ_s · r · (1 - S_t/K)  -  q_0 · E_t )
+#   E_{t+1} = E_t · exp( γ_e · (q_0 · Pw_t · S_t  -  c_0) )
 #
-# Parameter regime enforced throughout:
-#   pw1 > pw0       : fraudsters offer a price premium for outside-EEZ catch
-#   c1  > c0        : fishing outside EEZ is more expensive
-#   pw1 > c1        : fishing remains profitable even under full fraud
-#   pw1-c1 > pw0-c0 : fraud always yields a HIGHER net profit margin
-#
-# We vary the "fraud premium gap" Δ = pw1 - c1 across three scenarios
-# (marginal, moderate, high) and trace the ecological consequences.
+# We explore how the intrinsic growth rate r governs system complexity:
+#   low r  → stable bioeconomic equilibrium
+#   mid r  → periodic oscillations
+#   high r → chaotic boom-bust cycles
 # ════════════════════════════════════════════════════════════════════════════
 if False:
-    PW0, C0       = default_params['pw0'], default_params['c0']   # 1.0, 0.9
-    HONEST_MARGIN = PW0 - C0                                       # 0.1
-
-    # Each scenario: pw1 > pw0=1.0, c1 > c0=0.9, pw1 > c1, pw1-c1 > 0.1
-    eez_scenarios = [
-        {'pw1': 1.12, 'c1': 1.00, 'color': '#388E3C', 'label': 'Marginal (Δ=0.12)'},
-        {'pw1': 1.40, 'c1': 1.10, 'color': '#F57C00', 'label': 'Moderate (Δ=0.30)'},
-        {'pw1': 1.80, 'c1': 1.20, 'color': '#C62828', 'label': 'High (Δ=0.60)'},
-    ]
-
-    SIM_TIME   = 300
-    INIT_STATE = {
+    NO_FRAUD_STATE = {
         'S': np.float128(0.6), 'E': np.float128(0.3),
-        'F': np.float128(0.1), 'FP': np.float128(0.1),
+        'F': np.float128(0.0), 'FP': np.float128(0.0),
     }
 
-    ts_results = {}
-    for sc in eez_scenarios:
-        p = default_params.copy()
-        p.update({'pw1': sc['pw1'], 'c1': sc['c1']})
-        sys_sc = DynamicalSystem(
+    # ── Fig 1a: Time series at three r values ─────────────────────────────
+    r_showcase = [
+        {'r': 0.225, 'label': 'r = 0.225  (stable)', 'ls': '-'},
+        {'r': 2.50,  'label': 'r = 2.50   (periodic)', 'ls': '-'},
+        {'r': 3.75,  'label': 'r = 3.75   (chaotic)', 'ls': '-'},
+    ]
+    SIM_TIME_1 = 200
+
+    ts1 = {}
+    for rc in r_showcase:
+        p = DEFAULT_PARAMS.copy()
+        p['r'] = rc['r']
+        sys1 = DynamicalSystem(
+            params=p,
+            state={k: v for k, v in NO_FRAUD_STATE.items()},
+            type="dimensionalized",
+        )
+        ts1[rc['r']] = sys1.time_series_plot(time=SIM_TIME_1)
+
+    t_ax1 = np.arange(SIM_TIME_1 + 1)
+
+    fig1a, axes1a = plt.subplots(2, 3, figsize=(15, 7), sharex=True)
+    fig1a.suptitle(
+        'Scenario 1 — Baseline Bioeconomic Dynamics (No Fraud)\n'
+        'How intrinsic growth rate $r$ governs complexity',
+        fontsize=13,
+    )
+    for col, rc in enumerate(r_showcase):
+        data = ts1[rc['r']]
+        ax_s = axes1a[0, col]
+        ax_e = axes1a[1, col]
+
+        ax_s.plot(t_ax1, data['Seafood'], color=COLORS['S'], lw=1.8)
+        ax_s.plot(t_ax1, data['Harvest'],  color=COLORS['H'], lw=1.2, alpha=0.7)
+        ax_s.set_ylim(bottom=0)
+        ax_s.grid(True, alpha=0.25)
+        ax_s.set_title(rc['label'], fontsize=11)
+        if col == 0:
+            ax_s.set_ylabel('Seafood / Harvest', fontsize=10)
+        ax_s.legend(['S', 'H'], fontsize=8, loc='upper right')
+
+        ax_e.plot(t_ax1, data['Effort'], color=COLORS['E'], lw=1.8)
+        ax_e.set_ylim(bottom=0)
+        ax_e.grid(True, alpha=0.25)
+        ax_e.set_xlabel('Time Step', fontsize=9)
+        if col == 0:
+            ax_e.set_ylabel('Fishing Effort (E)', fontsize=10)
+
+    plt.tight_layout()
+    plt.show()
+
+    # ── Fig 1b: Bifurcation diagram over r ────────────────────────────────
+    BIF_R_MIN, BIF_R_MAX = 0.1, 4.0
+    BIF_RES   = 200
+    BIF_TIME  = 300
+    BIF_BURN  = int(BIF_TIME * 0.6)
+
+    r_sweep = np.linspace(BIF_R_MIN, BIF_R_MAX, BIF_RES)
+    bif_r, bif_S, bif_E = [], [], []
+
+    for r_val in r_sweep:
+        p = DEFAULT_PARAMS.copy()
+        p['r'] = float(r_val)
+        sys_bif = DynamicalSystem(
+            params=p,
+            state={k: v for k, v in NO_FRAUD_STATE.items()},
+            type="dimensionalized",
+        )
+        ts_bif = sys_bif.time_series_plot(time=BIF_TIME)
+        for s, e in zip(ts_bif['Seafood'][BIF_BURN:], ts_bif['Effort'][BIF_BURN:]):
+            bif_r.append(float(r_val))
+            bif_S.append(float(s))
+            bif_E.append(float(e))
+
+    fig1b, (ax_bs, ax_be) = plt.subplots(2, 1, figsize=(10, 7), sharex=True)
+    fig1b.suptitle(
+        'Scenario 1 — Bifurcation Diagram: Intrinsic Growth Rate ($r$)\n'
+        'No fraud  |  Attractor points after burn-in',
+        fontsize=12,
+    )
+    skw = dict(s=0.4, alpha=0.45)
+    ax_bs.scatter(bif_r, bif_S, color=COLORS['S'], **skw)
+    ax_be.scatter(bif_r, bif_E, color=COLORS['E'], **skw)
+
+    for ax in (ax_bs, ax_be):
+        ax.axvline(DEFAULT_PARAMS['r'], color='gray', ls='--', lw=1,
+                   label=f'Default r = {DEFAULT_PARAMS["r"]}')
+        ax.grid(True, alpha=0.25)
+
+    ax_bs.set_ylabel('Seafood Biomass  $S^*$', fontsize=10)
+    ax_be.set_ylabel('Fishing Effort  $E^*$', fontsize=10)
+    ax_be.set_xlabel('Intrinsic Growth Rate  ($r$)', fontsize=11)
+    ax_bs.legend(fontsize=9, loc='upper left')
+    plt.tight_layout()
+    plt.show()
+
+    # ── Fig 1c: Phase portrait (S, E) at three r values ──────────────────
+    PHASE_TIME = 300
+    PHASE_BURN = int(PHASE_TIME * 0.4)
+    phase_colors = ['#1B5E20', '#E65100', '#B71C1C']
+
+    fig1c, ax_ph = plt.subplots(figsize=(8, 6))
+    for rc, pc in zip(r_showcase, phase_colors):
+        p = DEFAULT_PARAMS.copy()
+        p['r'] = rc['r']
+        sys_ph = DynamicalSystem(
+            params=p,
+            state={k: v for k, v in NO_FRAUD_STATE.items()},
+            type="dimensionalized",
+        )
+        ts_ph = sys_ph.time_series_plot(time=PHASE_TIME)
+        S_ph = ts_ph['Seafood']
+        E_ph = ts_ph['Effort']
+
+        ax_ph.plot(S_ph[:PHASE_BURN], E_ph[:PHASE_BURN],
+                   color=pc, lw=0.8, alpha=0.2)
+        ax_ph.plot(S_ph[PHASE_BURN:], E_ph[PHASE_BURN:],
+                   color=pc, lw=1.8, alpha=0.9, label=rc['label'])
+        ax_ph.scatter([S_ph[0]], [E_ph[0]],
+                      color=pc, s=60, marker='o', zorder=5)
+        ax_ph.scatter([S_ph[-1]], [E_ph[-1]],
+                      color=pc, s=140, marker='*', zorder=6)
+
+    ax_ph.set_xlabel('Seafood Biomass (S)', fontsize=12)
+    ax_ph.set_ylabel('Fishing Effort (E)', fontsize=12)
+    ax_ph.set_title(
+        'Scenario 1 — Phase Portrait: Seafood vs. Effort\n'
+        'Faint = transient  |  Bold = attractor  |  ● start  |  ★ end',
+        fontsize=11,
+    )
+    ax_ph.legend(fontsize=10)
+    ax_ph.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# SCENARIO 2 — NON-ENFORCEMENT OF EXCLUSIVE ECONOMIC ZONES (EEZ)
+#
+# Context: Canada — Newfoundland Northwest Atlantic cod fishery.
+# Fraudster wholesalers enable fishers to sell catch harvested outside
+# the EEZ. This opens access to less-depleted stocks (higher q₁) but
+# at a greater cost per unit effort (higher c₁ — fuel, distance, risk).
+#
+# In the model:
+#   q(F)  = q₀ + (q₁ - q₀)·F   — catchability rises with fraud
+#   C(F)  = c₀ + (c₁ - c₀)·F   — cost per unit effort rises with fraud
+#   Pw(F) = (pw₀ + (pw₁-pw₀)·F) / (γ_p·H)^ε_sw  — wholesale price
+#
+# We sweep q₁ (outside-EEZ productivity) and c₁ (outside-EEZ cost) to
+# map out where fraud is ecologically sustainable vs. destructive.
+#
+# Fixed: r = 3.0 (productive species with oscillatory potential),
+#        pw1 = DEFAULT (0.81), pw0 = 1.0
+# ════════════════════════════════════════════════════════════════════════════
+if True:
+    EEZ_R = 3.0
+
+    Q1_MIN, Q1_MAX = DEFAULT_PARAMS['q0'], 0.30
+    C1_MIN, C1_MAX = DEFAULT_PARAMS['c0'], 2.0
+    HMAP_RES  = 35
+    HMAP_TIME = 250
+    HMAP_BURN = int(HMAP_TIME * 0.6)
+
+    q1_vals = np.linspace(Q1_MIN, Q1_MAX, HMAP_RES)
+    c1_vals = np.linspace(C1_MIN, C1_MAX, HMAP_RES)
+
+    mean_S = np.full((HMAP_RES, HMAP_RES), np.nan)
+    mean_F = np.full((HMAP_RES, HMAP_RES), np.nan)
+    mean_E = np.full((HMAP_RES, HMAP_RES), np.nan)
+
+    for i, c1 in enumerate(c1_vals):
+        for j, q1 in enumerate(q1_vals):
+            p = DEFAULT_PARAMS.copy()
+            p.update({'r': EEZ_R, 'q1': float(q1), 'c1': float(c1)})
+            sys_hm = DynamicalSystem(
+                params=p,
+                state={k: v for k, v in INIT_STATE.items()},
+                type="dimensionalized",
+            )
+            ts_hm = sys_hm.time_series_plot(time=HMAP_TIME)
+            mean_S[i, j] = float(np.mean(ts_hm['Seafood'][HMAP_BURN:]))
+            mean_F[i, j] = float(np.mean(ts_hm['Fraudsters'][HMAP_BURN:]))
+            mean_E[i, j] = float(np.mean(ts_hm['Effort'][HMAP_BURN:]))
+
+    extent = [Q1_MIN, Q1_MAX, C1_MIN, C1_MAX]
+
+    # ── Fig 2a: Heatmaps — mean S* and mean F* ───────────────────────────
+    fig2a, (ax_hs, ax_hf) = plt.subplots(1, 2, figsize=(14, 5.5))
+    fig2a.suptitle(
+        'Scenario 2 — EEZ Non-Enforcement: Parameter Landscape\n'
+        f'$r$ = {EEZ_R},  $pw_1$ = {DEFAULT_PARAMS["pw1"]},  $pw_0$ = {DEFAULT_PARAMS["pw0"]}  |  '
+        'Mean attractor values after burn-in',
+        fontsize=12,
+    )
+
+    im_s = ax_hs.imshow(
+        mean_S, origin='lower', aspect='auto', extent=extent,
+        cmap='YlGnBu', interpolation='bilinear',
+    )
+    fig2a.colorbar(im_s, ax=ax_hs, label='Mean Seafood Biomass $\\bar{S}^*$')
+    ax_hs.set_xlabel('Catchability at full fraud  ($q_1$)', fontsize=10)
+    ax_hs.set_ylabel('Cost at full fraud  ($c_1$)', fontsize=10)
+    ax_hs.set_title('Seafood Stock Health', fontsize=11)
+    ax_hs.scatter([DEFAULT_PARAMS['q1']], [DEFAULT_PARAMS['c1']],
+                  color='red', s=80, marker='x', zorder=5, label='Default $(q_1, c_1)$')
+    ax_hs.scatter([DEFAULT_PARAMS['q0']], [DEFAULT_PARAMS['c0']],
+                  color='white', s=80, marker='o', zorder=5, label='Honest $(q_0, c_0)$')
+    ax_hs.legend(fontsize=8, loc='upper left')
+
+    im_f = ax_hf.imshow(
+        mean_F, origin='lower', aspect='auto', extent=extent,
+        cmap='OrRd', interpolation='bilinear',
+    )
+    fig2a.colorbar(im_f, ax=ax_hf, label='Mean Fraudster Fraction $\\bar{F}^*$')
+    ax_hf.set_xlabel('Catchability at full fraud  ($q_1$)', fontsize=10)
+    ax_hf.set_ylabel('Cost at full fraud  ($c_1$)', fontsize=10)
+    ax_hf.set_title('Fraud Prevalence', fontsize=11)
+    ax_hf.scatter([DEFAULT_PARAMS['q1']], [DEFAULT_PARAMS['c1']],
+                  color='red', s=80, marker='x', zorder=5)
+    ax_hf.scatter([DEFAULT_PARAMS['q0']], [DEFAULT_PARAMS['c0']],
+                  color='white', s=80, marker='o', zorder=5)
+
+    plt.tight_layout()
+    plt.show()
+
+    # ── Fig 2b: Time series at four corners of (q1, c1) space ─────────────
+    corners = [
+        {'q1': 0.10, 'c1': 1.0, 'label': 'Low $q_1$, Low $c_1$',  'color': '#388E3C'},
+        {'q1': 0.25, 'c1': 1.0, 'label': 'High $q_1$, Low $c_1$', 'color': '#F57C00'},
+        {'q1': 0.10, 'c1': 1.8, 'label': 'Low $q_1$, High $c_1$', 'color': '#1565C0'},
+        {'q1': 0.25, 'c1': 1.8, 'label': 'High $q_1$, High $c_1$','color': '#C62828'},
+    ]
+    SIM_TIME_2 = 300
+    t_ax2 = np.arange(SIM_TIME_2 + 1)
+
+    ts2 = {}
+    for cn in corners:
+        p = DEFAULT_PARAMS.copy()
+        p.update({'r': EEZ_R, 'q1': cn['q1'], 'c1': cn['c1']})
+        sys_cn = DynamicalSystem(
             params=p,
             state={k: v for k, v in INIT_STATE.items()},
             type="dimensionalized",
         )
-        ts_results[sc['label']] = sys_sc.time_series_plot(time=SIM_TIME)
+        ts2[cn['label']] = sys_cn.time_series_plot(time=SIM_TIME_2)
 
-    t_axis = np.arange(SIM_TIME + 1)
-
-    # ── Figure 1: Fisher Profit Incentive Landscape ───────────────────────
-    #
-    # Normalized profit margin at representative effort (γ_p·H = 1):
-    #   π(F) = (pw0 - c0)  +  F · [(pw1 - pw0) - (c1 - c0)]
-    #
-    # All scenarios share the same honest intercept; the slope encodes how
-    # much more profitable each additional fraudster makes fishing.
-    # ─────────────────────────────────────────────────────────────────────
-    fig1, ax1 = plt.subplots(figsize=(8, 5))
-    F_range = np.linspace(0, 1, 300)
-
-    for sc in eez_scenarios:
-        slope  = (sc['pw1'] - PW0) - (sc['c1'] - C0)
-        margin = HONEST_MARGIN + F_range * slope
-        ax1.plot(F_range, margin, color=sc['color'], lw=2.5, label=sc['label'])
-        ax1.annotate(
-            f"  π={sc['pw1'] - sc['c1']:.2f}",
-            xy=(1.0, sc['pw1'] - sc['c1']),
-            color=sc['color'], fontsize=10, va='center',
-        )
-
-    ax1.axhline(HONEST_MARGIN, color='gray', ls='--', lw=1.5,
-                label=f'Honest baseline  (π = {HONEST_MARGIN})')
-    ax1.axhline(0, color='black', lw=0.8, ls=':')
-    ax1.set_xlim(0, 1.15)
-    ax1.set_ylim(-0.05, 0.85)
-    ax1.set_xlabel('Fraction of Fraudster Wholesalers (F)', fontsize=12)
-    ax1.set_ylabel('Normalized Profit Margin per Unit Effort', fontsize=12)
-    ax1.set_title(
-        'EEZ Fraud: Fisher Profit Incentive as Fraud Prevalence Grows\n'
-        r'$pw_1 > pw_0$: fraudster premium  |  $c_1 > c_0$: outside-EEZ cost',
-        fontsize=11,
-    )
-    ax1.legend(fontsize=10, loc='upper left')
-    ax1.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.show()
-
-    # ── Figure 2: Time Series Comparison (4 state vars × 3 scenarios) ────
-    state_panels = [
-        ('Seafood',             'Seafood Biomass (S)'),
-        ('Effort',              'Fishing Effort (E)'),
-        ('Fraudsters',          'Fraudster Fraction (F)'),
-        ('Perception of Fraud', 'Buyer Fraud Perception (FP)'),
+    state_vars = [
+        ('Seafood',             'Seafood (S)',  COLORS['S']),
+        ('Effort',              'Effort (E)',   COLORS['E']),
+        ('Fraudsters',          'Fraud (F)',    COLORS['F']),
+        ('Perception of Fraud', 'Percep. (FP)', COLORS['FP']),
     ]
-    fig2, axes2 = plt.subplots(4, 3, figsize=(14, 12), sharex=True)
-    fig2.suptitle(
-        'EEZ Fraud Dynamics: System Response Across Fraud Premium Levels\n'
-        r'Higher $\Delta = pw_1 - c_1$  →  stronger incentive to harvest outside EEZ',
+    fig2b, axes2b = plt.subplots(4, 4, figsize=(16, 12), sharex=True)
+    fig2b.suptitle(
+        'Scenario 2 — EEZ Dynamics at Four $(q_1, c_1)$ Corners\n'
+        f'$r$ = {EEZ_R}  |  columns = corners  |  rows = state variables',
         fontsize=13,
     )
-
-    for col, sc in enumerate(eez_scenarios):
-        data = ts_results[sc['label']]
-        for row, (var, ylabel) in enumerate(state_panels):
-            ax = axes2[row, col]
-            ax.plot(t_axis, data[var], color=sc['color'], lw=1.5)
+    for col, cn in enumerate(corners):
+        data = ts2[cn['label']]
+        for row, (var, ylabel, clr) in enumerate(state_vars):
+            ax = axes2b[row, col]
+            ax.plot(t_ax2, data[var], color=clr, lw=1.5)
             ax.grid(True, alpha=0.25)
             ax.set_ylim(bottom=0)
             if row == 0:
                 ax.set_title(
-                    f"{sc['label']}\n$pw_1$={sc['pw1']},  $c_1$={sc['c1']}",
-                    fontsize=10,
+                    f"{cn['label']}\n$q_1$={cn['q1']}, $c_1$={cn['c1']}",
+                    fontsize=9, color=cn['color'], fontweight='bold',
                 )
             if col == 0:
                 ax.set_ylabel(ylabel, fontsize=9)
@@ -272,268 +313,60 @@ if False:
     plt.tight_layout()
     plt.show()
 
-    # ── Figure 3: Phase Portrait — Seafood vs. Fraudsters ────────────────
-    #
-    # Trajectory in (S, F) phase space. Faint = transient, bold = attractor.
-    # Circles mark the shared starting point; stars mark the long-run end.
-    # ─────────────────────────────────────────────────────────────────────
-    BURN_TS = int(SIM_TIME * 0.5)
-    fig3, ax3 = plt.subplots(figsize=(8, 6))
+    # ── Fig 2c: Bifurcation over q1 at two c1 values ─────────────────────
+    c1_bif_vals = [1.0, 1.5]
+    c1_bif_colors = ['#1565C0', '#C62828']
+    BIF_Q1_RES  = 120
+    BIF_Q1_TIME = 200
+    BIF_Q1_BURN = int(BIF_Q1_TIME * 0.6)
 
-    for sc in eez_scenarios:
-        S_traj = ts_results[sc['label']]['Seafood']
-        F_traj = ts_results[sc['label']]['Fraudsters']
-        ax3.plot(S_traj[:BURN_TS], F_traj[:BURN_TS],
-                 color=sc['color'], lw=1.0, alpha=0.25)
-        ax3.plot(S_traj[BURN_TS:], F_traj[BURN_TS:],
-                 color=sc['color'], lw=2.0, alpha=0.9, label=sc['label'])
-        ax3.scatter([S_traj[0]],  [F_traj[0]],
-                    color=sc['color'], s=80,  marker='o', zorder=5)
-        ax3.scatter([S_traj[-1]], [F_traj[-1]],
-                    color=sc['color'], s=160, marker='*', zorder=6)
+    q1_sweep = np.linspace(Q1_MIN, Q1_MAX, BIF_Q1_RES)
 
-    ax3.set_xlabel('Seafood Biomass (S)', fontsize=12)
-    ax3.set_ylabel('Fraudster Fraction (F)', fontsize=12)
-    ax3.set_title(
-        'Phase Portrait: Seafood Biomass vs. Fraudster Fraction\n'
-        'Faint = transient  |  Bold = attractor  |  Circles = start  |  Stars = end',
-        fontsize=11,
+    fig2c, (ax_bqs, ax_bqf, ax_bqe) = plt.subplots(
+        3, 1, figsize=(10, 10), sharex=True,
     )
-    ax3.legend(fontsize=10)
-    ax3.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.show()
-
-    # ── Figure 4: Bifurcation — sweep pw1 at fixed c1 ────────────────────
-    #
-    # With c1 fixed, we sweep pw1 from the honest baseline (pw0) upward.
-    # Two vertical markers delineate three qualitative regimes:
-    #   pw1 < c1         : fraud is unprofitable (fishers lose money via fraud)
-    #   c1 ≤ pw1 < c1+Δ₀: fraud profitable but no better than honest fishing
-    #   pw1 ≥ c1+Δ₀     : fraud strictly dominates — EEZ violations pay off
-    # ─────────────────────────────────────────────────────────────────────
-    C1_BIF        = 1.05
-    EEZ_THRESHOLD = C1_BIF + HONEST_MARGIN   # pw1 where fraud beats honest = 1.15
-    BIF_TIME      = 200
-    BIF_RES       = 120
-    BIF_BURN      = int(BIF_TIME * 0.6)
-
-    pw1_sweep = np.linspace(PW0, 2.5, BIF_RES)
-    bif_pw1, bif_S, bif_F, bif_E = [], [], [], []
-
-    for pw1_val in pw1_sweep:
-        p = default_params.copy()
-        p.update({'r': 3.75, 'pw1': float(pw1_val), 'c1': C1_BIF})
-        sys_b = DynamicalSystem(
-            params=p,
-            state={k: v for k, v in INIT_STATE.items()},
-            type="dimensionalized",
-        )
-        ts_b = sys_b.time_series_plot(time=BIF_TIME)
-        for s, f, e in zip(
-            ts_b['Seafood'][BIF_BURN:],
-            ts_b['Fraudsters'][BIF_BURN:],
-            ts_b['Effort'][BIF_BURN:],
-        ):
-            bif_pw1.append(float(pw1_val))
-            bif_S.append(float(s))
-            bif_F.append(float(f))
-            bif_E.append(float(e))
-
-    fig4, (ax4a, ax4b, ax4c) = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
-    fig4.suptitle(
-        f'Bifurcation: Effect of the Fraudster Price Premium ($pw_1$)\n'
-        f'Fixed $c_1$={C1_BIF},  $r$=3.75  |  Honest profit margin = {HONEST_MARGIN}',
-        fontsize=12,
-    )
-    skw = dict(s=0.5, alpha=0.5)
-    ax4a.scatter(bif_pw1, bif_S, color='steelblue', **skw)
-    ax4b.scatter(bif_pw1, bif_F, color='crimson',   **skw)
-    ax4c.scatter(bif_pw1, bif_E, color='seagreen',  **skw)
-
-    vline_styles = [
-        (C1_BIF,        'red',    '--', f'$pw_1 = c_1$ = {C1_BIF}  (fraud breakeven)'),
-        (EEZ_THRESHOLD, 'orange', '-.', f'$pw_1$ = {EEZ_THRESHOLD:.2f}  (fraud > honest fishing)'),
-    ]
-    for ax in (ax4a, ax4b, ax4c):
-        for xv, col, ls, lbl in vline_styles:
-            ax.axvline(xv, color=col, ls=ls, lw=1.3, label=lbl)
-        ax.grid(True, alpha=0.25)
-
-    ax4a.set_ylabel('Seafood Biomass  $S^*$', fontsize=10)
-    ax4b.set_ylabel('Fraudster Fraction  $F^*$', fontsize=10)
-    ax4c.set_ylabel('Fishing Effort  $E^*$', fontsize=10)
-    ax4c.set_xlabel('Wholesale Price at Full Fraud  ($pw_1$)', fontsize=11)
-    ax4a.legend(fontsize=8, loc='upper right')
-
-    plt.tight_layout()
-    plt.show()
-
-
-# ════════════════════════════════════════════════════════════════════════════
-# EEZ SCENARIO — CATCHABILITY SWEEP
-#
-# Story: Fraudsters unlock access to outside-EEZ fishing grounds. Fishers
-# pay higher costs (c1 > c0) for the privilege, but gain access to less-
-# depleted stocks. We proxy this abundance via catchability q: as q rises,
-# each unit of effort yields more fish.
-#
-# The question: at what level of outside-EEZ productivity does the
-# combination of fraud and high catchability drive the stock toward collapse?
-#
-# Fixed: pw1=1.30 (fraudster price premium), c1=1.10 (EEZ cost > c0=0.9)
-# Swept: q across a range representing increasing outside-EEZ productivity
-# ════════════════════════════════════════════════════════════════════════════
-if True:
-    EEZ_PW1    = 1.30
-    EEZ_C1     = 1.10
-    Q_MIN      = 0.01
-    Q_MAX      = 0.25
-    N_SHOWCASE = 5       # number of q values for time series / phase portrait
-    BIF_RES_Q  = 100
-    BIF_TIME_Q = 200
-    BIF_BURN_Q = int(BIF_TIME_Q * 0.6)
-    SIM_TIME_Q = 300
-
-    INIT_STATE_Q = {
-        'S': np.float128(0.6), 'E': np.float128(0.3),
-        'F': np.float128(0.1), 'FP': np.float128(0.1),
-    }
-
-    q_showcase = np.linspace(Q_MIN, Q_MAX, N_SHOWCASE)
-    cmap_q     = plt.cm.plasma
-    colors_q   = cmap_q(np.linspace(0.1, 0.85, N_SHOWCASE))
-    sm_q       = plt.cm.ScalarMappable(
-        cmap=cmap_q, norm=plt.Normalize(Q_MIN, Q_MAX)
-    )
-    sm_q.set_array([])
-
-    # ── Run showcase simulations ──────────────────────────────────────────
-    ts_q = {}
-    for q_val in q_showcase:
-        p = default_params.copy()
-        p.update({'pw1': EEZ_PW1, 'c1': EEZ_C1, 'q': float(q_val)})
-        sys_q = DynamicalSystem(
-            params=p,
-            state={k: v for k, v in INIT_STATE_Q.items()},
-            type="dimensionalized",
-        )
-        ts_q[float(q_val)] = sys_q.time_series_plot(time=SIM_TIME_Q)
-
-    t_axis_q = np.arange(SIM_TIME_Q + 1)
-
-    # ── Figure 1: Time Series Overlay (2×2 grid, lines coloured by q) ────
-    state_panels_q = [
-        ('Seafood',             'Seafood Biomass (S)'),
-        ('Effort',              'Fishing Effort (E)'),
-        ('Fraudsters',          'Fraudster Fraction (F)'),
-        ('Perception of Fraud', 'Buyer Fraud Perception (FP)'),
-    ]
-    fig_q1, axes_q1 = plt.subplots(2, 2, figsize=(13, 8))
-    fig_q1.suptitle(
-        'EEZ Catchability Sweep: System Dynamics as Outside-EEZ Productivity Grows\n'
-        f'Fixed: $pw_1$={EEZ_PW1},  $c_1$={EEZ_C1} (> $c_0$={default_params["c0"]}),  '
-        r'$r$=3.75   |   colour = catchability $q$',
+    fig2c.suptitle(
+        'Scenario 2 — Bifurcation: Outside-EEZ Catchability ($q_1$)\n'
+        f'$r$ = {EEZ_R}  |  Two cost levels compared  |  '
+        f'Default $q_0$ = {DEFAULT_PARAMS["q0"]}',
         fontsize=12,
     )
 
-    for idx, (var, ylabel) in enumerate(state_panels_q):
-        ax = axes_q1.flatten()[idx]
-        for q_val, col in zip(q_showcase, colors_q):
-            ax.plot(t_axis_q, ts_q[float(q_val)][var],
-                    color=col, lw=1.6, alpha=0.9,
-                    label=f'q = {q_val:.3f}')
-        ax.set_ylabel(ylabel, fontsize=10)
-        ax.set_xlabel('Time Step', fontsize=9)
-        ax.set_ylim(bottom=0)
+    for c1_val, c1_clr in zip(c1_bif_vals, c1_bif_colors):
+        bq_q, bq_S, bq_F, bq_E = [], [], [], []
+        for q1_val in q1_sweep:
+            p = DEFAULT_PARAMS.copy()
+            p.update({'r': EEZ_R, 'q1': float(q1_val), 'c1': float(c1_val)})
+            sys_bq = DynamicalSystem(
+                params=p,
+                state={k: v for k, v in INIT_STATE.items()},
+                type="dimensionalized",
+            )
+            ts_bq = sys_bq.time_series_plot(time=BIF_Q1_TIME)
+            for s, f, e in zip(
+                ts_bq['Seafood'][BIF_Q1_BURN:],
+                ts_bq['Fraudsters'][BIF_Q1_BURN:],
+                ts_bq['Effort'][BIF_Q1_BURN:],
+            ):
+                bq_q.append(float(q1_val))
+                bq_S.append(float(s))
+                bq_F.append(float(f))
+                bq_E.append(float(e))
+
+        skw = dict(s=0.5, alpha=0.45, label=f'$c_1$ = {c1_val}')
+        ax_bqs.scatter(bq_q, bq_S, color=c1_clr, **skw)
+        ax_bqf.scatter(bq_q, bq_F, color=c1_clr, **skw)
+        ax_bqe.scatter(bq_q, bq_E, color=c1_clr, **skw)
+
+    for ax in (ax_bqs, ax_bqf, ax_bqe):
+        ax.axvline(DEFAULT_PARAMS['q0'], color='gray', ls='--', lw=1,
+                   label=f'$q_0$ = {DEFAULT_PARAMS["q0"]}  (honest baseline)')
         ax.grid(True, alpha=0.25)
 
-    axes_q1.flatten()[1].legend(fontsize=9, loc='upper right', title='Catchability q')
-    fig_q1.subplots_adjust(right=0.88)
-    cax_q1 = fig_q1.add_axes([0.91, 0.15, 0.02, 0.68])
-    fig_q1.colorbar(sm_q, cax=cax_q1).set_label('Catchability (q)', fontsize=10)
-    plt.show()
-
-    # ── Figure 2: Phase Portrait in (S, F) coloured by q ─────────────────
-    BURN_Q = int(SIM_TIME_Q * 0.5)
-    fig_q2, ax_q2 = plt.subplots(figsize=(8, 6))
-
-    for q_val, col in zip(q_showcase, colors_q):
-        S_traj = ts_q[float(q_val)]['Seafood']
-        F_traj = ts_q[float(q_val)]['Fraudsters']
-        ax_q2.plot(S_traj[:BURN_Q], F_traj[:BURN_Q],
-                   color=col, lw=0.9, alpha=0.2)
-        ax_q2.plot(S_traj[BURN_Q:], F_traj[BURN_Q:],
-                   color=col, lw=2.0, alpha=0.95)
-        ax_q2.scatter([S_traj[0]],  [F_traj[0]],
-                      color=col, s=70,  marker='o', zorder=5)
-        ax_q2.scatter([S_traj[-1]], [F_traj[-1]],
-                      color=col, s=150, marker='*', zorder=6)
-
-    fig_q2.colorbar(sm_q, ax=ax_q2).set_label('Catchability (q)', fontsize=10)
-    ax_q2.set_xlabel('Seafood Biomass (S)', fontsize=12)
-    ax_q2.set_ylabel('Fraudster Fraction (F)', fontsize=12)
-    ax_q2.set_title(
-        'Phase Portrait: Seafood vs. Fraudsters Across Catchability Levels\n'
-        'Faint = transient  |  Bold = attractor  |  Circles = start  |  Stars = end',
-        fontsize=11,
-    )
-    ax_q2.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.show()
-
-    # ── Figure 3: Bifurcation over q ─────────────────────────────────────
-    #
-    # Fine sweep of q; vertical reference line at the default value (0.07).
-    # Three qualitative stories visible in the attractor cloud:
-    #   low q  : high-effort, low-catch regime — fraud present but stocks hold
-    #   mid q  : oscillatory / period-doubling transition
-    #   high q : high-catch, stock-collapse regime driven by fraud
-    # ─────────────────────────────────────────────────────────────────────
-    q_sweep = np.linspace(Q_MIN, Q_MAX, BIF_RES_Q)
-    bif_q, bif_qS, bif_qF, bif_qE = [], [], [], []
-
-    for q_val in q_sweep:
-        p = default_params.copy()
-        p.update({'pw1': EEZ_PW1, 'c1': EEZ_C1, 'q': float(q_val)})
-        sys_bq = DynamicalSystem(
-            params=p,
-            state={k: v for k, v in INIT_STATE_Q.items()},
-            type="dimensionalized",
-        )
-        ts_bq = sys_bq.time_series_plot(time=BIF_TIME_Q)
-        for s, f, e in zip(
-            ts_bq['Seafood'][BIF_BURN_Q:],
-            ts_bq['Fraudsters'][BIF_BURN_Q:],
-            ts_bq['Effort'][BIF_BURN_Q:],
-        ):
-            bif_q.append(float(q_val))
-            bif_qS.append(float(s))
-            bif_qF.append(float(f))
-            bif_qE.append(float(e))
-
-    fig_q3, (ax_q3a, ax_q3b, ax_q3c) = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
-    fig_q3.suptitle(
-        'Bifurcation: Outside-EEZ Catchability ($q$) as the Driver\n'
-        f'Fixed: $pw_1$={EEZ_PW1},  $c_1$={EEZ_C1},  $r$=3.75  |  '
-        f'Default $q$={default_params["q"]} shown for reference',
-        fontsize=12,
-    )
-    skw_q = dict(s=0.5, alpha=0.5)
-    ax_q3a.scatter(bif_q, bif_qS, color='steelblue', **skw_q)
-    ax_q3b.scatter(bif_q, bif_qF, color='crimson',   **skw_q)
-    ax_q3c.scatter(bif_q, bif_qE, color='seagreen',  **skw_q)
-
-    for ax in (ax_q3a, ax_q3b, ax_q3c):
-        ax.axvline(default_params['q'], color='gray', ls='--', lw=1.3,
-                   label=f'Default $q$ = {default_params["q"]}')
-        ax.grid(True, alpha=0.25)
-
-    ax_q3a.set_ylabel('Seafood Biomass  $S^*$', fontsize=10)
-    ax_q3b.set_ylabel('Fraudster Fraction  $F^*$', fontsize=10)
-    ax_q3c.set_ylabel('Fishing Effort  $E^*$', fontsize=10)
-    ax_q3c.set_xlabel('Catchability  ($q$)', fontsize=11)
-    ax_q3a.legend(fontsize=9, loc='upper right')
-
+    ax_bqs.set_ylabel('Seafood Biomass  $S^*$', fontsize=10)
+    ax_bqf.set_ylabel('Fraudster Fraction  $F^*$', fontsize=10)
+    ax_bqe.set_ylabel('Fishing Effort  $E^*$', fontsize=10)
+    ax_bqe.set_xlabel('Catchability at Full Fraud  ($q_1$)', fontsize=11)
+    ax_bqs.legend(fontsize=9, loc='upper right')
     plt.tight_layout()
     plt.show()
