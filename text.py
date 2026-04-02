@@ -46,7 +46,7 @@ INTRO = r'''
     Because fraudsters are looking to maximize their profit margins, the fraudster equation is given as such:
     
     $
-    F_{t+1} = \frac{F_{t}e^{\gamma_{F}(\gamma_{M}P^{m}_{t} - P^{w}_{t})}}{1+F_{t}(e^{\gamma_{F}(\gamma_{M}P^{m}_{t} - P^{w}_{t}})-1)}
+    F_{t+1} = \frac{F_{t}e^{\gamma_{F}(P^{m}_{t} - P^{w}_{t})}}{1+F_{t}(e^{\gamma_{F}(P^{m}_{t} - P^{w}_{t}})-1)}
     $
     
     The fraudsters equation follows a logistic-like function that bounds $F_{t}$ between zero and one. This allows the fraudsters to be represented as a proportion of the total amount of wholesalers within the seafood supply chain. $F_{t}$ equaling one means that every wholesaler is fraudulent, and $F_{t}$ equaling zero means that every wholesaler is honest.
@@ -59,7 +59,7 @@ INTRO = r'''
     $
     F^{P}_{t+1} = \frac{F^{p}_{t}e^{\gamma_{FP}(F_{t} - \hat{F})}}{1+F^{p}_{t}(e^{\gamma_{FP}(F_{t} - \hat{F}})-1)}\\
     D_{t} = \frac{(1-F^{p}_{t})^{ϵ_{d}}}{P^{m}_{t}} = \sqrt{(1-F^{p}_{t})^{ϵ_{d}}H_{t}^{ϵ_{s, m}}}\\
-    P^{m}_{t} = (\frac{D_{t}}{H_{t}^{ϵ_{s, m}}}) = \sqrt{\frac{(1-F^{p}_{t})^{ϵ_{d}}}{H_{t}^{ϵ_{s, m}}}}
+    P^{m}_{t} = \gamma_{M}\frac{D_{t}}{H_{t}^{ϵ_{s, m}}} = \gamma_{M}\sqrt{\frac{(1-F^{p}_{t})^{ϵ_{d}}}{H_{t}^{ϵ_{s, m}}}}
     $
     
     The perception of fraudster equation follows the same functional form as the fraudster equation, such that it's bounded between zero and one to represent a proportion of the entire population of seafood buyers within the supply chain. $F^{p}_{t}$ at one means that every buyer believes there is some sort of fraudulent activity within the seafood supply chain, and $F^{p}_{t}$ at zero means that every buyer believes that every player within the seafood supply chain is honest (non-fraudulent). The way $F^{p}_{t}$ grows is through the actual amount of fraud $F_{t}$ growing bigger than some minimal noticeable level of fraud ($\hat{F}$). Therefore, when $F_{t}$ grows beyond $\hat{F}$, $F^{p}_{t}$ grows because they are able to pick up on the fraudulent activity present. Conversely, when $F_{t}$ shrinks below $\hat{F}$, $F^{p}_{t}$ shrinks because there isn't any noticeable fraudulent activity.

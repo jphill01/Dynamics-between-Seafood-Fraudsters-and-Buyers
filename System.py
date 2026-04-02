@@ -5,11 +5,11 @@ CLOSE_TO_ZERO = np.finfo(np.float128).eps
 CLOSE_TO_ONE = 1 - np.finfo(np.float128).epsneg
 POSITIVE_INF = np.inf
 DEFAULT_PARAMS = {
-    'gamma_m': 5.0,
-    'gamma_f': 1.0,
+    'gamma_m': 10.0,
+    'gamma_p': 1.0,
     'gamma_s': 1.0,
     'gamma_e': 0.225,
-    'gamma_p': 1.0,
+    'gamma_f': 1.0,
     'gamma_fp': 1.0,
     
     'e_d': 1.0,
@@ -21,11 +21,10 @@ DEFAULT_PARAMS = {
     'r': 0.225,
     
     'q0': 0.07,
-    'q1': 0.10,
+    'q1': 0.15,
     'pw0': 1.0,
-    'c0': 0.9, # Chosen to be illustative
-    
     'pw1': 0.81,
+    'c0': 0.9,
     'c1': 0.153
 }
 class DynamicalSystem():
@@ -46,7 +45,8 @@ class DynamicalSystem():
                 * e_sm (float128): [Add description for e_sm].
                 * K (float128): Carrying capacity of the seafood population.
                 * F_threshold (float128): Threshold limit for fraud.
-                * q (float128): Catchability coefficient.
+                * q0 (float128): Catchability coefficient when no fraudsters are present.
+                * q1 (float128): Catchability coefficient when fraudsters are present.
                 * r (float128): Intrinsic growth rate.
                 * pw0 (float128): [Add description for pw0].
                 * c0 (float128): [Add description for c0].
@@ -230,6 +230,12 @@ class DynamicalSystem():
         return E_next
     def fraudster_state_dimful(self):
         F = self.state['F']
+        
+        if F == 1.0:
+            return 1.0
+        if F == 0.0:
+            return 0.0
+        
         gamma_f = self.params['gamma_f']
         
         pm = self.market_price()
@@ -240,6 +246,12 @@ class DynamicalSystem():
     def p_fraudster_state_dimful(self):
         F = self.state['F']
         FP = self.state['FP']
+        
+        if FP == 1.0:
+            return 1.0
+        if FP == 0.0:
+            return 0.0
+        
         F_threshold = self.params['F_threshold']
         gamma_fp = self.params['gamma_fp']
         exp_delta_fp = np.exp(gamma_fp * (F - F_threshold))
@@ -278,6 +290,7 @@ class DynamicalSystem():
         return np.clip([np.sqrt((FP)**e_d * H**e_sm)], np.finfo(type(FP)).eps, np.inf)[0]
     def market_price(self):
         FP = self.state['FP']
+        gamma_m = self.params['gamma_m']
         e_d = self.params['e_d']
         e_sm = self.params['e_sm']
         H = self.harvest()
@@ -287,7 +300,7 @@ class DynamicalSystem():
             Reduces risk of numerical imprecisions 
             (and values reaching areas they shouldn't reach).
         '''
-        return np.clip([np.sqrt((1-FP)**e_d / H**e_sm)], CLOSE_TO_ZERO, POSITIVE_INF)[0]
+        return np.clip([np.sqrt((1-FP)**e_d / H**e_sm) * gamma_m], CLOSE_TO_ZERO, POSITIVE_INF)[0]
     def wholesale_price(self):
         F = self.state['F']
         pw0 = self.params['pw0']
