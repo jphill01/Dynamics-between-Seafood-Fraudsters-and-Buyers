@@ -250,7 +250,7 @@ def scenario_1():
         with _c3:
             s1_rng = st.slider("r sweep range", 0.1, 6.0, (0.1, 4.0), 0.1, key="s1_rng")
         s1_r_vals = st.multiselect(
-            "r values for time series & return maps",
+            "r values for time series & poincare",
             [0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 3.0, 3.75, 4.0, 5.0],
             default=[0.5, 1.5, 2.5, 3.75],
             key="s1_rv",
@@ -275,7 +275,7 @@ def scenario_1():
         status.update(label="Scenario 1 ready", state="complete", expanded=False)
 
     tab_ts, tab_bif, tab_rm = st.tabs(
-        ["Time Series", "Bifurcation", "Return Maps"]
+        ["Time Series", "Bifurcation", "Poincare"]
     )
 
     with tab_ts:
@@ -369,7 +369,7 @@ def scenario_1():
         fig.update_yaxes(title_text='E(t+1)', row=2, col=1)
         fig.update_layout(
             height=600,
-            title_text='Return Maps — x(t) vs x(t+1) (attractor only)',
+            title_text='Poincare — x(t) vs x(t+1) (attractor only)',
             margin=dict(t=60, b=40),
         )
         st.plotly_chart(fig, use_container_width=True)
@@ -475,7 +475,7 @@ def _plot_return_maps(ts_dict, param_vals, param_label, burn, colors=COLORS4):
     fig.update_yaxes(title_text='E(t+1)', row=2, col=1)
     fig.update_layout(
         height=600,
-        title_text='Return Maps — x(t) vs x(t+1) (attractor only)',
+        title_text='Poincare — x(t) vs x(t+1) (attractor only)',
         margin=dict(t=60, b=40),
     )
     return fig
@@ -504,7 +504,7 @@ def scenario_2():
                 key="s2_rng",
             )
         s2_pw_vals = st.multiselect(
-            "pw₁ values for time series & return maps",
+            "pw₁ values for time series & poincare",
             [1.10, 1.25, 1.50, 1.75, 2.00, 2.25, 2.50, 3.00, 4.00, 5.00],
             default=[1.10, 1.50, 2.00, 3.00],
             key="s2_pw",
@@ -528,7 +528,7 @@ def scenario_2():
         status.update(label="Scenario 2 ready", state="complete", expanded=False)
 
     tab_ts, tab_bif, tab_rm = st.tabs(
-        ["Time Series", "Bifurcation", "Return Maps"]
+        ["Time Series", "Bifurcation", "Poincare"]
     )
 
     with tab_ts:
@@ -570,7 +570,7 @@ def scenario_3():
         with _c3:
             s3_rng = st.slider("α sweep range", 0.0, 1.0, (0.0, 1.0), 0.05, key="s3_rng")
         s3_a_vals = st.multiselect(
-            "α values for time series & return maps",
+            "α values for time series & poincare",
             [0.0, 0.10, 0.15, 0.25, 0.40, 0.55, 0.70, 0.85, 1.00],
             default=[0.15, 0.40, 0.70, 1.00],
             key="s3_av",
@@ -601,7 +601,7 @@ def scenario_3():
     ]
 
     tab_ts, tab_bif, tab_rm = st.tabs(
-        ["Time Series", "Bifurcation", "Return Maps"]
+        ["Time Series", "Bifurcation", "Poincare"]
     )
 
     with tab_ts:
@@ -646,7 +646,7 @@ def scenario_4():
         with _c3:
             s4_rng = st.slider("β sweep range", 0.0, 1.0, (0.0, 1.0), 0.05, key="s4_rng")
         s4_b_vals = st.multiselect(
-            "β values for time series & return maps",
+            "β values for time series & poincare",
             [0.0, 0.10, 0.15, 0.25, 0.40, 0.55, 0.70, 0.85, 1.00],
             default=[0.15, 0.40, 0.70, 1.00],
             key="s4_bv",
@@ -675,7 +675,7 @@ def scenario_4():
     ]
 
     tab_ts, tab_bif, tab_rm = st.tabs(
-        ["Time Series", "Bifurcation", "Return Maps"]
+        ["Time Series", "Bifurcation", "Poincare"]
     )
 
     with tab_ts:
