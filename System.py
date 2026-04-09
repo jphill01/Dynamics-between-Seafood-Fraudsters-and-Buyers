@@ -76,6 +76,7 @@ class DynamicalSystem():
     def seafood_state_nondim(self):
         S = self.state['S']
         E = self.state['E']
+        catchability = self.catchability_nondim()
         gamma_s = self.nondim_params['gamma_s']
         
         '''
@@ -84,7 +85,7 @@ class DynamicalSystem():
             (and values reaching areas they shouldn't reach).
         '''
         S_next = np.clip(
-            [S * np.exp(gamma_s * (1 - S - E))],
+            [S * np.exp(gamma_s * (1 - S - E * catchability))],
             np.finfo(np.float128).eps,
             POSITIVE_INF
         )[0]
@@ -94,17 +95,16 @@ class DynamicalSystem():
         S = self.state['S']
         E = self.state['E']
         F = self.state['F']
-        q = self.nondim_params['q']
-        pw = self.nondim_params['pw']
-        c = self.nondim_params['c']
         e_sw = self.nondim_params['e_sw']
         gamma_p = self.nondim_params['gamma_p']
         gamma_e = self.nondim_params['gamma_e']
+        mu = self.nondim_params['mu']
+        wholesale_price = self.wholesale_price_nondim()
+        cost = self.cost_nondim()
+        catchability = self.catchability_nondim()
 
-        term_1 = (F * (pw - 1) + 1)
-        denom_e = (gamma_p * E * S ) ** e_sw
-        term_2 = (q * S * (term_1 / denom_e))
-        term_3 = (F * (c - 1)) + 1
+        denom_e = (gamma_p * E * S * catchability) ** e_sw
+        term = (mu * S * catchability * wholesale_price) / denom_e
                 
         '''
             Artificially create a floor near 0+.
@@ -112,7 +112,7 @@ class DynamicalSystem():
             (and values reaching areas they shouldn't reach).
         '''
         E_next = np.clip(
-            [E * np.exp(gamma_e * (term_2 - term_3))],
+            [E * np.exp(gamma_e * (term - cost))],
             CLOSE_TO_ZERO,
             POSITIVE_INF
         )[0]
@@ -123,13 +123,14 @@ class DynamicalSystem():
         E = self.state['E']
         F = self.state['F']
         FP = self.state['FP']
-        pw = self.nondim_params['pw']
         e_sw = self.nondim_params['e_sw']
         e_sm = self.nondim_params['e_sm']
         e_d = self.nondim_params['e_d']
         gamma_f = self.nondim_params['gamma_f']
         gamma_m = self.nondim_params['gamma_m']
         gamma_p = self.nondim_params['gamma_p']
+        wholesale_price = self.wholesale_price_nondim()
+        catchability = self.catchability_nondim()
         
         '''
             1.0 and 0.0 are known fixed points.
@@ -142,11 +143,11 @@ class DynamicalSystem():
             return 0.0
         
         with warnings.catch_warnings(record=True) as recorded_warnings:
-            denom_market = (E * S)**(e_sm/2)
+            denom_market = (E * S * catchability)**(e_sm/2)
             price_market = gamma_m * ((1 - FP)**(e_d/2) / denom_market)
             
-            denom_wholesale = (gamma_p * E * S)**(e_sw)
-            price_wholesale = (F * (pw - 1) + 1) / denom_wholesale
+            denom_wholesale = (gamma_p * E * S * catchability)**(e_sw)
+            price_wholesale = wholesale_price / denom_wholesale
             
             delta = gamma_f * (price_market - price_wholesale)
             
@@ -192,6 +193,20 @@ class DynamicalSystem():
         )[0]
         
         return FP_next
+    
+    # VARIABLES (nondimensionalized)
+    def wholesale_price_nondim(self):
+        F = self.state['F']
+        pw = self.nondim_params['pw']
+        return F * (pw - 1) + 1
+    def cost_nondim(self):
+        F = self.state['F']
+        c = self.nondim_params['c']
+        return F * (c - 1) + 1
+    def catchability_nondim(self):
+        F = self.state['F']
+        q = self.nondim_params['q']
+        return F * (q - 1) + 1
     
     # STATE VARIABLES (dimensionful)
     def seafood_state_dimful(self):
@@ -671,7 +686,8 @@ class DynamicalSystem():
             'gamma_fp': params['gamma_fp'],
             'e_sm': params['e_sm'], 'e_sw': params['e_sw'], 'e_d': params['e_d'],
             'F_threshold': params['F_threshold'],
-            'q': (params['q'] * params['pw0'] * params['K']) / params['c0'],
+            'mu': (params['q0'] * params['pw0'] * params['K']) / params['c0'],
+            'q': params['q1'] / params['q0'],
             'pw': params['pw1'] / params['pw0'],
             'c': params['c1'] / params['c0'],
         }
