@@ -197,7 +197,7 @@ if True:
 # Same gear, same waters: c₁ = c₀, q₁ = q₀.
 # Focus parameter: pw₁.
 # ════════════════════════════════════════════════════════════════════════════
-if True:
+if False:
     pw1_vals = [1.10, 1.50, 2.00, 3.00]
     N_PW     = len(pw1_vals)
     SIM2     = 400
@@ -286,7 +286,7 @@ if True:
 #   pw₁(α) = pw₀ − α·0.40  →  [1.00, 0.60]
 #   c₁(α)  = c₀ − α·0.80   →  [0.90, 0.10]
 # ════════════════════════════════════════════════════════════════════════════
-if True:
+if False:
     def blast_params(alpha):
         return {
             'q1': Q0  + alpha * 0.33,
@@ -382,7 +382,7 @@ if True:
 #   c₁(β) = c₀ + β·1.10  →  [0.90, 2.00]
 # pw₁ stays at default (fraudsters buy illegal catch at discount).
 # ════════════════════════════════════════════════════════════════════════════
-if True:
+if False:
     def eez_params(beta):
         return {
             'q1': Q0 + beta * 0.23,
@@ -478,7 +478,7 @@ if True:
 #
 # Focus parameter: ε_d (decreasing = more dependent).
 # ════════════════════════════════════════════════════════════════════════════
-if True:
+if False:
     ed_vals = [2.0, 1.0, 0.5, 0.1]
     N_ED    = len(ed_vals)
     SIM5    = 400
