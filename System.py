@@ -1,6 +1,6 @@
 import numpy as np
 import warnings
-from scipy.optimize import fsolve
+from scipy.optimize import least_squares
 
 CLOSE_TO_ZERO = np.finfo(np.float128).eps
 CLOSE_TO_ONE = 1 - np.finfo(np.float128).epsneg
@@ -15,7 +15,7 @@ DEFAULT_PARAMS = {
     'gamma_fp': 1.0,
     
     'e_d': 1.0,
-    'e_sw': 1.0,
+    'e_sw': 0.9,
     'e_sm': 1.0,
     
     'K': 1.0,
@@ -321,7 +321,7 @@ class DynamicalSystem():
         q = self.catchability()
         Pw = self.wholesale_price()
         S = self.state['S']
-        E = self.state['E']
+        
         return q * Pw * S
     def cost_per_unit_effort(self):
         F = self.state['F']
@@ -377,7 +377,7 @@ class DynamicalSystem():
         market_price_arr = np.array(self.market_price(), dtype=np.float128)
         wholesale_price_arr = np.array(self.wholesale_price(), dtype=np.float128)
         
-        for i in range(time):
+        for _ in range(time):
             result = self.system_map()
             self.state = {
                 'S': result['S'], 'E': result['E'],
@@ -442,10 +442,13 @@ class DynamicalSystem():
     def find_fixed_point(self, initial_guess=None, warmup_steps=500, tol=1e-10):
         '''
         Find a fixed point x* of the map G(x*) = x* using
-        scipy.optimize.fsolve (MINPACK hybrd — modified Powell hybrid method).
+        scipy.optimize.least_squares with Trust Region Reflective (trf),
+        which supports box constraints to keep F and FP in (0, 1).
 
         Strategy: simulate forward `warmup_steps` iterations from the current
-        state to get close to the attractor, then refine with fsolve.
+        state to get close to the attractor, then refine with least_squares.
+        Uses both the last warmup state and the orbit mean as candidates,
+        keeping whichever yields the smallest residual at an interior point.
 
         Args:
             initial_guess: dict with keys 'S','E','F','FP', or None to
@@ -457,26 +460,67 @@ class DynamicalSystem():
                 'fixed_point' : dict {'S','E','F','FP'}
                 'residual_norm': float — ||G(x*) - x*||
                 'converged'   : bool
-                'info'        : fsolve info dict
+                'info'        : least_squares result object
         '''
+        def residual(x):
+            return self._evaluate_map_vec(x) - x
+
+        lower = np.array([CLOSE_TO_ZERO, CLOSE_TO_ZERO, CLOSE_TO_ZERO, CLOSE_TO_ZERO])
+        upper = np.array([np.inf,         np.inf,         CLOSE_TO_ONE,  CLOSE_TO_ONE])
+
+        candidates = []
+
         if initial_guess is not None:
-            x0 = np.array([float(initial_guess[k]) for k in STATE_KEYS])
+            candidates.append(np.array([float(initial_guess[k]) for k in STATE_KEYS]))
         else:
             saved = self.state.copy()
-            for _ in range(warmup_steps):
+            tail_len = max(warmup_steps // 2, 50)
+            orbit = []
+            for _wi in range(warmup_steps):
                 result = self.system_map()
                 self.state = {
                     'S': result['S'], 'E': result['E'],
                     'F': result['F'], 'FP': result['FP'],
                 }
-            x0 = np.array([float(self.state[k]) for k in STATE_KEYS])
+                if _wi >= warmup_steps - tail_len:
+                    orbit.append([float(self.state[k]) for k in STATE_KEYS])
+            x_last = np.array([float(self.state[k]) for k in STATE_KEYS])
             self.state = saved
 
-        def residual(x):
-            return self._evaluate_map_vec(x) - x
+            orbit_arr = np.array(orbit)
+            x_mean = orbit_arr.mean(axis=0)
+            candidates.append(x_mean)
+            candidates.append(x_last)
 
-        x_star, info, ier, msg = fsolve(residual, x0, full_output=True)
+        best_result = None
+        best_norm = np.inf
 
+        for _, x0 in enumerate(candidates):
+            x0 = np.clip(x0, lower, upper)
+
+            ls_result = least_squares(
+                residual, x0, bounds=(lower, upper),
+                method='trf', max_nfev=5000,
+            )
+            x_star = ls_result.x
+            res_norm = float(np.linalg.norm(residual(x_star)))
+
+            is_boundary = (
+                x_star[2] < 1e-6 or x_star[2] > 1 - 1e-6 or
+                x_star[3] < 1e-6 or x_star[3] > 1 - 1e-6 or
+                x_star[0] < 1e-6
+            )
+
+            if is_boundary and best_result is not None:
+                continue
+            if (not is_boundary and best_result is not None
+                    and best_norm < np.inf and res_norm > best_norm):
+                continue
+            if res_norm < best_norm or (is_boundary == False):
+                best_result = ls_result
+                best_norm = res_norm
+
+        x_star = best_result.x
         res_norm = float(np.linalg.norm(residual(x_star)))
         fp_dict = {k: v for k, v in zip(STATE_KEYS, x_star)}
 
@@ -484,7 +528,7 @@ class DynamicalSystem():
             'fixed_point': fp_dict,
             'residual_norm': res_norm,
             'converged': res_norm < tol,
-            'info': info,
+            'info': best_result,
         }
 
     def jacobian(self, state=None, h=None):
@@ -571,12 +615,19 @@ class DynamicalSystem():
 
         margin = 1e-6
         has_complex = any(abs(ev.imag) > 1e-10 for ev in eigenvalues)
-        if rho < 1.0 - margin:
+
+        if not fp_result['converged']:
+            classification = "no fixed point found (solver did not converge)"
+            stable = False
+        elif rho < 1.0 - margin:
             classification = "stable spiral" if has_complex else "stable node"
+            stable = True
         elif rho > 1.0 + margin:
             classification = "unstable spiral" if has_complex else "unstable node"
+            stable = False
         else:
             classification = "Neimark-Sacker boundary (marginal)"
+            stable = rho < 1.0
 
         return {
             'fixed_point': fp,
@@ -585,7 +636,7 @@ class DynamicalSystem():
             'jacobian': J,
             'eigenvalues': eigenvalues,
             'spectral_radius': rho,
-            'stable': rho < 1.0,
+            'stable': stable,
             'classification': classification,
         }
 

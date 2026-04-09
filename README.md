@@ -87,7 +87,24 @@ The `DynamicalSystem` class includes numerical tools for local stability analysi
 
 Finds a fixed point $x^*$ satisfying $G(x^*) = x^*$ by solving the root-finding problem $G(x) - x = 0$.
 
-**Algorithm:** `scipy.optimize.fsolve` — MINPACK's `hybrd` routine, a modified Powell hybrid method that switches between Newton steps and scaled gradient-descent steps. By default, the solver is warm-started by simulating the map forward 500 steps from the current state to get close to the attractor before refinement.
+**Solver:** `scipy.optimize.least_squares` with the **Trust Region Reflective (TRF)** method. This was chosen over the previous `fsolve` (MINPACK `hybrd`) because TRF supports **box constraints**, which are essential for this system: $F$ and $F^p$ are proportions confined to $(0, 1)$, and $S$ must remain positive. Without bounds, unconstrained solvers can wander into physically meaningless regions (negative biomass, fraud fractions outside $[0,1]$) where the map produces `NaN`/`Inf`.
+
+The bounds are:
+
+$$S > 0, \quad E > 0, \quad 0 < F < 1, \quad 0 < F^p < 1$$
+
+**Initial guess strategy — orbit mean with multi-candidate selection:**
+
+A naive warm-start (simulating forward and using the last state) fails when the system is in a limit-cycle or chaotic regime: the last iterate sits on the oscillation rather than near a fixed point, and the solver drifts to a degenerate boundary equilibrium (e.g. $F \approx 0, F^p \approx 1, S \approx 0$) that is irrelevant to the dynamics.
+
+To handle this, the solver uses a two-candidate approach:
+
+1. **Orbit mean** — Simulate the map forward `warmup_steps` iterations and collect the last half of the trajectory. The component-wise mean of this tail approximates the center of the attractor. Even when the orbit oscillates wildly (e.g. $F$ bouncing between 0.03 and 0.97), the mean ($F \approx 0.5$) lands near the interior fixed point.
+2. **Last iterate** — The final state of the warmup, which works well when the trajectory converges to a stable equilibrium.
+
+Both candidates are passed to `least_squares` (with `max_nfev=5000`), and the best result is selected with a preference for **interior solutions** over boundary ones. A candidate is classified as a boundary solution if $S < 10^{-6}$, $F < 10^{-6}$, $F > 1 - 10^{-6}$, $F^p < 10^{-6}$, or $F^p > 1 - 10^{-6}$.
+
+**Convergence:** A fixed point is considered converged when $\|G(x^*) - x^*\| < \texttt{tol}$ (default $10^{-10}$).
 
 ### `jacobian(state=None, h=None)`
 
@@ -102,6 +119,8 @@ The default perturbation $h = \varepsilon^{1/3} \cdot \max(1, |x_i|)$ where $\va
 Orchestrates the full workflow: finds the fixed point, computes the Jacobian, and extracts eigenvalues via `numpy.linalg.eig` (LAPACK's `dgeev` — implicit QR iteration).
 
 For a discrete-time map, the fixed point is **stable** when the spectral radius $\rho = \max_i |\lambda_i| < 1$ (all eigenvalues inside the unit circle) and **unstable** when $\rho > 1$. The transition at $\rho = 1$ through a complex conjugate pair is a **Neimark-Sacker bifurcation** (the discrete-time analog of a Hopf bifurcation).
+
+If the fixed-point solver did not converge (residual above tolerance), the analysis reports `stable = False` with classification `"no fixed point found (solver did not converge)"` rather than trusting eigenvalues at a non-equilibrium point.
 
 **Example:**
 

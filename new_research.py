@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 
 from System import DynamicalSystem, DEFAULT_PARAMS
 
@@ -14,86 +13,6 @@ INIT_STATE = {
 }
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# DEFAULT TIME SERIES — ALL FOUR STATE VARIABLES
-# ════════════════════════════════════════════════════════════════════════════
-if False:
-    sys_default = DynamicalSystem(
-        params=DEFAULT_PARAMS.copy(),
-        state={k: v for k, v in INIT_STATE.items()},
-        type="dimensionalized",
-    )
-    ts_default = sys_default.time_series_plot(time=1000)
-    t_default = np.arange(1001)
-    
-    print(np.min(ts_default['Seafood']), np.max(ts_default['Seafood']))
-
-    fig_d, ax_d = plt.subplots(figsize=(12, 6))
-    ax_d.plot(t_default, ts_default['Seafood'],             color=COLORS['S'],  lw=1.8, label='Seafood (S)')
-    ax_d.plot(t_default, ts_default['Effort'],              color=COLORS['E'],  lw=1.8, label='Effort (E)')
-    ax_d.plot(t_default, ts_default['Fraudsters'],          color=COLORS['F'],  lw=1.8, label='Fraudsters (F)')
-    ax_d.plot(t_default, ts_default['Perception of Fraud'], color=COLORS['FP'], lw=1.8, label='Perception (FP)')
-    
-    ax2 = ax_d.twinx()
-    ax2.plot(t_default, ts_default['Market Price'], color=COLORS['Pm'], lw=1.8, label='Market Price (Pm)')
-    ax2.plot(t_default, ts_default['Wholesale Price'], color=COLORS['Pw'], lw=1.8, label='Wholesale Price (Pw)')
-    ax2.plot(t_default, ts_default['Harvest'], color=COLORS['H'], lw=1.8, label='Harvest (H)')
-    ax2.set_ylabel('Market Price and Harvest', fontsize=11)
-    
-    ax2.legend(fontsize=10, loc='upper right')
-    ax2.set_ylim(bottom=0)
-    ax2.grid(True, alpha=0.3)
-    ax_d.set_xlabel('Time Step', fontsize=11)
-    ax_d.set_ylabel('State Value', fontsize=11)
-    ax_d.set_title('Default Parameters — Dimensionalized Time Series', fontsize=13)
-    ax_d.legend(fontsize=10, loc='upper right')
-    ax_d.set_ylim(bottom=0)
-    ax_d.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.show()
-
-
-# ════════════════════════════════════════════════════════════════════════════
-# BIFURCATION — SEAFOOD VS. γ_m (market price sensitivity)
-# ════════════════════════════════════════════════════════════════════════════
-if False:
-    GM_MIN, GM_MAX = 0.1, 20.0
-    GM_RES   = 250
-    GM_TIME  = 300
-    GM_BURN  = int(GM_TIME * 0.6)
-
-    gm_sweep = np.linspace(GM_MIN, GM_MAX, GM_RES)
-    bif_gm, bif_gm_S = [], []
-
-    for gm_val in gm_sweep:
-        p = DEFAULT_PARAMS.copy()
-        p['gamma_m'] = float(gm_val)
-        sys_gm = DynamicalSystem(
-            params=p,
-            state={k: v for k, v in INIT_STATE.items()},
-            type="dimensionalized",
-        )
-        ts_gm = sys_gm.time_series_plot(time=GM_TIME)
-        for s in ts_gm['Seafood'][GM_BURN:]:
-            bif_gm.append(float(gm_val))
-            bif_gm_S.append(float(s))
-
-    fig_gm, ax_gm = plt.subplots(figsize=(10, 6))
-    ax_gm.scatter(bif_gm, bif_gm_S, s=0.4, alpha=0.45, color=COLORS['S'])
-    ax_gm.axvline(DEFAULT_PARAMS['gamma_m'], color='gray', ls='--', lw=1.2,
-                  label=f'Default $\\gamma_m$ = {DEFAULT_PARAMS["gamma_m"]}')
-    ax_gm.set_xlabel('$\\gamma_m$  (market price sensitivity)', fontsize=11)
-    ax_gm.set_ylabel('Seafood Biomass  $S^*$  (attractor)', fontsize=11)
-    ax_gm.set_title(
-        'Bifurcation Diagram: Seafood vs. $\\gamma_m$\n'
-        'Default params  |  attractor points after burn-in',
-        fontsize=12,
-    )
-    ax_gm.legend(fontsize=10, loc='upper right')
-    ax_gm.grid(True, alpha=0.25)
-    plt.tight_layout()
-    plt.show()
-
 
 # ════════════════════════════════════════════════════════════════════════════
 # SHARED CONSTANTS
@@ -103,6 +22,28 @@ C0  = DEFAULT_PARAMS['c0']
 Q0  = DEFAULT_PARAMS['q0']
 HONEST_MARGIN = PW0 - C0
 
+SIM1 = 1000
+p = DEFAULT_PARAMS.copy()
+p['e_d'] = 0.3
+s = DynamicalSystem(p, {k: v for k, v in INIT_STATE.items()}, "dimensionalized")
+d = s.time_series_plot(time=SIM1)
+fig1a, ax1a = plt.subplots(1, 1)
+t1 = np.arange(SIM1 + 1)
+ax1a.plot(t1, d['Seafood'], color=COLORS['S'], lw=1.5)
+ax1a.plot(t1, d['Effort'],  color=COLORS['E'], lw=1.5)
+ax1a.plot(t1, d['Fraudsters'],  color=COLORS['F'], lw=1.5)
+ax1a.plot(t1, d['Perception of Fraud'],  color=COLORS['FP'], lw=1.5)
+ax1a.grid(True, alpha=0.25)
+ax1a.set_xlabel('Time', fontsize=9)
+
+s = DynamicalSystem(p, {k: v for k, v in INIT_STATE.items()}, "dimensionalized")
+sa = s.stability_analysis()
+print('fixed point: ', sa['fixed_point'])
+print('eigenvalues: ', sa['eigenvalues'])
+print('spectral radius: ', sa['spectral_radius'])
+print('stable: ', sa['stable'])
+print('classification: ', sa['classification'])
+plt.tight_layout(); plt.show()
 
 # ════════════════════════════════════════════════════════════════════════════
 # SCENARIO 1 — BASELINE BIOECONOMIC MODEL (NO FRAUD)
@@ -110,7 +51,7 @@ HONEST_MARGIN = PW0 - C0
 # F = 0, FP = 0 throughout.  System reduces to S vs E only.
 # Focus parameter: intrinsic growth rate r.
 # ════════════════════════════════════════════════════════════════════════════
-if True:
+if False:
     NO_FRAUD = {
         'S': np.float128(0.6), 'E': np.float128(0.3),
         'F': np.float128(0.0), 'FP': np.float128(0.0),
@@ -124,7 +65,7 @@ if True:
 
     ts1 = {}
     for rv in r_vals:
-        p = DEFAULT_PARAMS.copy(); p['r'] = rv
+        p = DEFAULT_PARAMS.copy(); p['r'] = rv; p['e_sw'] = 0.9
         s = DynamicalSystem(p, {k: v for k, v in NO_FRAUD.items()}, "dimensionalized")
         ts1[rv] = s.time_series_plot(time=SIM1)
 
