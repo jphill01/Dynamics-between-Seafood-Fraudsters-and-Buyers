@@ -1,9 +1,11 @@
 import numpy as np
 import warnings
+from scipy.optimize import fsolve
 
 CLOSE_TO_ZERO = np.finfo(np.float128).eps
 CLOSE_TO_ONE = 1 - np.finfo(np.float128).epsneg
 POSITIVE_INF = np.inf
+STATE_KEYS = ('S', 'E', 'F', 'FP')
 DEFAULT_PARAMS = {
     'gamma_m': 10.0,
     'gamma_p': 1.0,
@@ -365,6 +367,7 @@ class DynamicalSystem():
             'harvest': harvest,
             'demand': demand,
         }
+    
     def time_series_plot(self, time, title="", x_label="", y_label="", ax=None) -> dict:
         seafood = np.array(self.state['S'], dtype=np.float128)
         effort = np.array(self.state['E'], dtype=np.float128)
@@ -398,7 +401,194 @@ class DynamicalSystem():
             'Wholesale Price': wholesale_price_arr,
             'Harvest': harvest_arr,
         }
+
+    def _evaluate_map_vec(self, state_vec):
+        '''
+        Evaluate the 4D map G(x) at an arbitrary state vector without
+        permanently mutating self.state.
+
+        Clamps inputs to the physically valid domain before evaluation
+        so that finite-difference perturbations in the Jacobian cannot
+        push variables into regions that produce NaN/Inf (e.g. F < 0
+        causing negative wholesale prices, or H → 0 blowing up market
+        price).
+
+        Args:
+            state_vec: length-4 array-like [S, E, F, FP]
+        Returns:
+            np.ndarray of shape (4,) with [S', E', F', FP']
+        '''
         
+        # Clamping to 
+        clamped = np.array([
+            max(state_vec[0], CLOSE_TO_ZERO),              # S > 0
+            max(state_vec[1], CLOSE_TO_ZERO),              # E > 0
+            min(max(state_vec[2], CLOSE_TO_ZERO), CLOSE_TO_ONE),  # 0 < F < 1
+            min(max(state_vec[3], CLOSE_TO_ZERO), CLOSE_TO_ONE),  # 0 < FP < 1
+        ])
+
+        saved = self.state.copy()
+        self.state = {
+            k: np.float128(v)
+            for k, v in zip(STATE_KEYS, clamped)
+        }
+        result = self.system_map()
+        self.state = saved
+        return np.array([
+            float(result['S']), float(result['E']),
+            float(result['F']), float(result['FP']),
+        ])
+
+    def find_fixed_point(self, initial_guess=None, warmup_steps=500, tol=1e-10):
+        '''
+        Find a fixed point x* of the map G(x*) = x* using
+        scipy.optimize.fsolve (MINPACK hybrd — modified Powell hybrid method).
+
+        Strategy: simulate forward `warmup_steps` iterations from the current
+        state to get close to the attractor, then refine with fsolve.
+
+        Args:
+            initial_guess: dict with keys 'S','E','F','FP', or None to
+                           use the warm-start strategy.
+            warmup_steps:  number of forward iterations for warm start.
+            tol:           convergence tolerance on the residual norm.
+        Returns:
+            dict with keys:
+                'fixed_point' : dict {'S','E','F','FP'}
+                'residual_norm': float — ||G(x*) - x*||
+                'converged'   : bool
+                'info'        : fsolve info dict
+        '''
+        if initial_guess is not None:
+            x0 = np.array([float(initial_guess[k]) for k in STATE_KEYS])
+        else:
+            saved = self.state.copy()
+            for _ in range(warmup_steps):
+                result = self.system_map()
+                self.state = {
+                    'S': result['S'], 'E': result['E'],
+                    'F': result['F'], 'FP': result['FP'],
+                }
+            x0 = np.array([float(self.state[k]) for k in STATE_KEYS])
+            self.state = saved
+
+        def residual(x):
+            return self._evaluate_map_vec(x) - x
+
+        x_star, info, ier, msg = fsolve(residual, x0, full_output=True)
+
+        res_norm = float(np.linalg.norm(residual(x_star)))
+        fp_dict = {k: v for k, v in zip(STATE_KEYS, x_star)}
+
+        return {
+            'fixed_point': fp_dict,
+            'residual_norm': res_norm,
+            'converged': res_norm < tol,
+            'info': info,
+        }
+
+    def jacobian(self, state=None, h=None):
+        '''
+        Compute the 4×4 Jacobian of the map G at a given state using
+        central finite differences:
+
+            J_ji = (G_j(x + h*e_i) - G_j(x - h*e_i)) / (2h)
+
+        Perturbation size defaults to eps^(1/3) * max(1, |x_i|) where
+        eps ≈ 2.2e-16 (float64 machine epsilon), giving O(h²) accuracy.
+
+        Args:
+            state: dict {'S','E','F','FP'} or None (uses current self.state)
+            h:     scalar perturbation override, or None for adaptive step
+        Returns:
+            np.ndarray of shape (4, 4)
+        '''
+        if state is None:
+            state = self.state
+        x0 = np.array([float(state[k]) for k in STATE_KEYS])
+        eps_machine = np.finfo(np.float64).eps
+        n = len(x0)
+        J = np.zeros((n, n))
+
+        for i in range(n):
+            hi = h if h is not None else (eps_machine ** (1.0 / 3.0)) * max(1.0, abs(x0[i]))
+            x_fwd = x0.copy()
+            x_bwd = x0.copy()
+            x_fwd[i] += hi
+            x_bwd[i] -= hi
+            J[:, i] = (self._evaluate_map_vec(x_fwd) - self._evaluate_map_vec(x_bwd)) / (2.0 * hi)
+
+        return J
+
+    def stability_analysis(self, initial_guess=None, warmup_steps=500, tol=1e-10):
+        '''
+        Full stability analysis: find the fixed point, compute the Jacobian,
+        extract eigenvalues (via numpy.linalg.eig — LAPACK QR iteration),
+        and classify stability.
+
+        For a discrete map, the fixed point is stable iff the spectral
+        radius rho = max|lambda_i| < 1.
+
+        Args:
+            initial_guess: passed to find_fixed_point()
+            warmup_steps:  passed to find_fixed_point()
+            tol:           passed to find_fixed_point()
+        Returns:
+            dict with keys:
+                'fixed_point'    : dict {'S','E','F','FP'}
+                'converged'      : bool — whether the fixed-point solver converged
+                'residual_norm'  : float
+                'jacobian'       : np.ndarray (4,4)
+                'eigenvalues'    : np.ndarray of complex eigenvalues
+                'spectral_radius': float — max |lambda_i|
+                'stable'         : bool — True iff spectral_radius < 1
+                'classification' : str
+        '''
+        fp_result = self.find_fixed_point(
+            initial_guess=initial_guess,
+            warmup_steps=warmup_steps,
+            tol=tol,
+        )
+        fp = fp_result['fixed_point']
+
+        J = self.jacobian(state=fp)
+
+        if not np.all(np.isfinite(J)):
+            return {
+                'fixed_point': fp,
+                'converged': fp_result['converged'],
+                'residual_norm': fp_result['residual_norm'],
+                'jacobian': J,
+                'eigenvalues': np.array([np.inf] * 4),
+                'spectral_radius': np.inf,
+                'stable': False,
+                'classification': 'degenerate (Jacobian contains NaN/Inf)',
+            }
+
+        eigenvalues = np.linalg.eig(J)[0]
+        moduli = np.abs(eigenvalues)
+        rho = float(np.max(moduli))
+
+        margin = 1e-6
+        has_complex = any(abs(ev.imag) > 1e-10 for ev in eigenvalues)
+        if rho < 1.0 - margin:
+            classification = "stable spiral" if has_complex else "stable node"
+        elif rho > 1.0 + margin:
+            classification = "unstable spiral" if has_complex else "unstable node"
+        else:
+            classification = "Neimark-Sacker boundary (marginal)"
+
+        return {
+            'fixed_point': fp,
+            'converged': fp_result['converged'],
+            'residual_norm': fp_result['residual_norm'],
+            'jacobian': J,
+            'eigenvalues': eigenvalues,
+            'spectral_radius': rho,
+            'stable': rho < 1.0,
+            'classification': classification,
+        }
+
     # FUNCTION PROPERTIES
     @property
     def state(self):

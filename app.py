@@ -97,6 +97,20 @@ def s2_bifurcation(pw_min: float, pw_max: float, resolution: int,
     return np.array(bp_p), np.array(bp_S), np.array(bp_E)
 
 
+@st.cache_data(show_spinner=False)
+def s2_spectral_sweep(pw_min: float, pw_max: float, resolution: int) -> tuple:
+    pw_vals = np.linspace(pw_min, pw_max, resolution)
+    rho_vals = np.empty(resolution)
+    for i, pw in enumerate(pw_vals):
+        p = DEFAULT_PARAMS.copy()
+        p.update({'pw1': float(pw), 'c1': _C0, 'q1': _Q0})
+        state = {k: np.float128(v) for k, v in FULL_INIT.items()}
+        sys = DynamicalSystem(p, state, "dimensionalized")
+        result = sys.stability_analysis()
+        rho_vals[i] = result['spectral_radius']
+    return pw_vals.astype(np.float64), rho_vals.astype(np.float64)
+
+
 # ── Scenario 3 ─────────────────────────────────────────────────────────────
 
 def _blast_params(alpha: float) -> dict:
@@ -178,6 +192,24 @@ def s4_bifurcation(b_min: float, b_max: float, resolution: int,
     return np.array(bb_b), np.array(bb_S), np.array(bb_E)
 
 
+@st.cache_data(show_spinner=False)
+def s4_stability_heatmap(c1_min: float, c1_max: float,
+                         q1_min: float, q1_max: float,
+                         resolution: int) -> tuple:
+    c1_arr = np.linspace(c1_min, c1_max, resolution)
+    q1_arr = np.linspace(q1_min, q1_max, resolution)
+    stable_grid = np.full((resolution, resolution), np.nan)
+    for i, q1 in enumerate(q1_arr):
+        for j, c1 in enumerate(c1_arr):
+            p = DEFAULT_PARAMS.copy()
+            p.update({'c1': float(c1), 'q1': float(q1)})
+            state = {k: np.float128(v) for k, v in FULL_INIT.items()}
+            sys = DynamicalSystem(p, state, "dimensionalized")
+            result = sys.stability_analysis()
+            stable_grid[i, j] = 1.0 if result['stable'] else 0.0
+    return c1_arr.astype(np.float64), q1_arr.astype(np.float64), stable_grid
+
+
 # ── Scenario 5 ─────────────────────────────────────────────────────────────
 
 @st.cache_data(show_spinner=False)
@@ -227,6 +259,20 @@ def s5_heatmap(ed_min: float, ed_max: float, ft_min: float, ft_max: float,
             ts = sys.time_series_plot(time=bif_time)
             hm_S[i, j] = float(np.mean(ts['Seafood'][burn:]))
     return ed_hm.astype(np.float64), ft_hm.astype(np.float64), hm_S.astype(np.float64)
+
+
+@st.cache_data(show_spinner=False)
+def s5_spectral_sweep(ed_min: float, ed_max: float, resolution: int) -> tuple:
+    ed_vals = np.linspace(ed_min, ed_max, resolution)
+    rho_vals = np.empty(resolution)
+    for i, ed in enumerate(ed_vals):
+        p = DEFAULT_PARAMS.copy()
+        p['e_d'] = float(ed)
+        state = {k: np.float128(v) for k, v in FULL_INIT.items()}
+        sys = DynamicalSystem(p, state, "dimensionalized")
+        result = sys.stability_analysis()
+        rho_vals[i] = result['spectral_radius']
+    return ed_vals.astype(np.float64), rho_vals.astype(np.float64)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -307,7 +353,7 @@ def scenario_1():
             legend=dict(orientation='h', yanchor='bottom', y=1.06),
             margin=dict(t=80, b=40),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     with tab_bif:
         fig = make_subplots(
@@ -338,7 +384,7 @@ def scenario_1():
             title_text='Bifurcation Diagram over r (No Fraud)',
             margin=dict(t=60, b=40),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     with tab_rm:
         fig = make_subplots(
@@ -372,7 +418,7 @@ def scenario_1():
             title_text='Poincare — x(t) vs x(t+1) (attractor only)',
             margin=dict(t=60, b=40),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
 
 # ── Helper: 4-variable time-series chart (used by Scenarios 2-5) ──────────
@@ -525,10 +571,12 @@ def scenario_2():
         bp_p, bp_S, bp_E = s2_bifurcation(
             float(s2_rng[0]), float(s2_rng[1]), s2_res, 300, 0.6,
         )
+        st.write("Computing stability sweep…")
+        s2_pw_sweep, s2_rho = s2_spectral_sweep(0.05, 5.0, 100)
         status.update(label="Scenario 2 ready", state="complete", expanded=False)
 
-    tab_ts, tab_bif, tab_rm = st.tabs(
-        ["Time Series", "Bifurcation", "Poincare"]
+    tab_ts, tab_bif, tab_rm, tab_stab = st.tabs(
+        ["Time Series", "Bifurcation", "Poincare", "Stability"]
     )
 
     with tab_ts:
@@ -537,7 +585,7 @@ def scenario_2():
             f'Prized Seafood — Time Series as pw₁ Increases   '
             f'(c₁=c₀={_C0},  q₁=q₀={_Q0},  r={DEFAULT_PARAMS["r"]})',
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     with tab_bif:
         fig = _plot_bifurcation(
@@ -546,11 +594,44 @@ def scenario_2():
             title=f'Bifurcation Diagram over pw₁   (r={DEFAULT_PARAMS["r"]})',
             vline_x=float(_PW0), vline_label=f'pw₀ = {_PW0}',
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     with tab_rm:
         fig = _plot_return_maps(ts2, s2_pw_vals, 'pw₁', _burn2)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
+
+    with tab_stab:
+        finite = np.isfinite(s2_rho)
+        pw_fin, rho_fin = s2_pw_sweep[finite], s2_rho[finite]
+        stable_mask = rho_fin < 1.0
+        y_cap = max(float(np.max(rho_fin[rho_fin < 50])) * 1.1, 2.0) if np.any(rho_fin < 50) else 5.0
+        rho_plot = np.clip(rho_fin, 0, y_cap)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=pw_fin[stable_mask], y=rho_plot[stable_mask],
+            mode='markers', marker=dict(color='#2E8B57', size=6),
+            name='Stable (ρ < 1)',
+        ))
+        fig.add_trace(go.Scatter(
+            x=pw_fin[~stable_mask], y=rho_plot[~stable_mask],
+            mode='markers', marker=dict(color='#DC143C', size=6),
+            name='Unstable (ρ ≥ 1)',
+        ))
+        fig.add_hline(y=1.0, line_dash='dash', line_color='gray',
+                      annotation_text='ρ = 1 (stability boundary)')
+        fig.update_layout(
+            height=600,
+            title_text=(
+                f'Spectral Radius vs pw₁ — Fixed-Point Stability   '
+                f'(c₁=c₀={_C0},  q₁=q₀={_Q0},  r={DEFAULT_PARAMS["r"]})'
+            ),
+            xaxis_title='pw₁ (black-market wholesale price)',
+            yaxis_title='Spectral Radius  ρ = max|λᵢ|',
+            yaxis_range=[0, y_cap],
+            margin=dict(t=60, b=40),
+            legend=dict(yanchor='top', y=0.99, xanchor='right', x=0.99),
+        )
+        st.plotly_chart(fig, width='stretch')
 
 
 @st.fragment
@@ -612,7 +693,7 @@ def scenario_3():
         )
         for i, lbl in enumerate(bp_labels):
             fig.layout.annotations[i].text = lbl
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     with tab_bif:
         fig = _plot_bifurcation(
@@ -621,11 +702,11 @@ def scenario_3():
             title='Bifurcation over α   '
                   '(α=0 → honest  |  α=1 → q₁=0.40, pw₁=0.60, c₁=0.10)',
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     with tab_rm:
         fig = _plot_return_maps(ts3, s3_a_vals, 'α', _burn3)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
 
 @st.fragment
@@ -667,6 +748,10 @@ def scenario_4():
         bb_b, bb_S, bb_E = s4_bifurcation(
             float(s4_rng[0]), float(s4_rng[1]), s4_res, 300, 0.6,
         )
+        st.write("Computing stability heatmap…")
+        s4_c1_arr, s4_q1_arr, s4_stable = s4_stability_heatmap(
+            0.1, 3.0, 0.01, 0.5, 30,
+        )
         status.update(label="Scenario 4 ready", state="complete", expanded=False)
 
     ep_labels = [
@@ -674,8 +759,8 @@ def scenario_4():
         for b in s4_b_vals
     ]
 
-    tab_ts, tab_bif, tab_rm = st.tabs(
-        ["Time Series", "Bifurcation", "Poincare"]
+    tab_ts, tab_bif, tab_rm, tab_stab = st.tabs(
+        ["Time Series", "Bifurcation", "Poincare", "Stability"]
     )
 
     with tab_ts:
@@ -687,7 +772,7 @@ def scenario_4():
         )
         for i, lbl in enumerate(ep_labels):
             fig.layout.annotations[i].text = lbl
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     with tab_bif:
         fig = _plot_bifurcation(
@@ -696,11 +781,50 @@ def scenario_4():
             title='Bifurcation over β   '
                   '(β=0 → honest  |  β=1 → q₁=0.30, c₁=2.00)',
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     with tab_rm:
         fig = _plot_return_maps(ts4, s4_b_vals, 'β', _burn4)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
+
+    with tab_stab:
+        s4_stable_clean = np.nan_to_num(s4_stable, nan=0.0)
+        colorscale = [[0, '#DC143C'], [1, '#2E8B57']]
+        fig = go.Figure(data=go.Heatmap(
+            z=s4_stable_clean, x=s4_c1_arr, y=s4_q1_arr,
+            colorscale=colorscale, zmin=0, zmax=1,
+            showscale=False,
+            hovertemplate='c₁=%{x:.2f}<br>q₁=%{y:.3f}<br>%{customdata}<extra></extra>',
+            customdata=np.where(s4_stable_clean == 1.0, 'Stable', 'Unstable'),
+        ))
+        fig.add_trace(go.Scatter(
+            x=[_C0], y=[_Q0], mode='markers',
+            marker=dict(color='white', size=14, symbol='x',
+                        line=dict(color='black', width=2)),
+            name='Default (c₀, q₀)',
+        ))
+        fig.add_trace(go.Scatter(
+            x=[None], y=[None], mode='markers',
+            marker=dict(color='#2E8B57', size=10, symbol='square'),
+            name='Stable (ρ < 1)',
+        ))
+        fig.add_trace(go.Scatter(
+            x=[None], y=[None], mode='markers',
+            marker=dict(color='#DC143C', size=10, symbol='square'),
+            name='Unstable (ρ ≥ 1)',
+        ))
+        fig.update_layout(
+            height=600,
+            title_text=(
+                f'Binary Stability Map — c₁ vs q₁   '
+                f'(pw₁={DEFAULT_PARAMS["pw1"]},  r={DEFAULT_PARAMS["r"]})'
+            ),
+            xaxis_title='Fishing Cost (c₁)',
+            yaxis_title='Catchability (q₁)',
+            margin=dict(t=60, b=40),
+            legend=dict(yanchor='top', y=0.99, xanchor='right', x=0.99),
+        )
+        st.plotly_chart(fig, width='stretch')
 
 
 @st.fragment
@@ -747,10 +871,12 @@ def scenario_5():
         ed_hm, ft_hm, hm_S = s5_heatmap(
             0.05, 3.0, 0.05, 0.95, s5_hm_res, 300, 0.6,
         )
+        st.write("Computing stability sweep…")
+        s5_ed_sweep, s5_rho = s5_spectral_sweep(0.05, 5.0, 100)
         status.update(label="Scenario 5 ready", state="complete", expanded=False)
 
-    s5_tab_ts, s5_tab_bif, s5_tab_hm = st.tabs(
-        ["Time Series", "Bifurcation", "Defence Heatmap"]
+    s5_tab_ts, s5_tab_bif, s5_tab_hm, s5_tab_stab = st.tabs(
+        ["Time Series", "Bifurcation", "Defence Heatmap", "Stability"]
     )
 
     with s5_tab_ts:
@@ -759,7 +885,7 @@ def scenario_5():
             f'Buyer Dependence — Time Series as ε_d Decreases   '
             f'(r={DEFAULT_PARAMS["r"]}  |  Low ε_d = buyers cannot walk away)',
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     with s5_tab_bif:
         _def_ed = DEFAULT_PARAMS['e_d']
@@ -770,7 +896,7 @@ def scenario_5():
                   '(Low → buyers dependent  |  High → buyers sensitive to fraud)',
             vline_x=_def_ed, vline_label=f'Default ε_d = {_def_ed}',
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     with s5_tab_hm:
         fig = go.Figure(data=go.Heatmap(
@@ -797,7 +923,40 @@ def scenario_5():
             margin=dict(t=60, b=40),
             legend=dict(yanchor='top', y=0.99, xanchor='right', x=0.99),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
+
+    with s5_tab_stab:
+        finite = np.isfinite(s5_rho)
+        ed_fin, rho_fin = s5_ed_sweep[finite], s5_rho[finite]
+        stable_mask = rho_fin < 1.0
+        y_cap = max(float(np.max(rho_fin[rho_fin < 50])) * 1.1, 2.0) if np.any(rho_fin < 50) else 5.0
+        rho_plot = np.clip(rho_fin, 0, y_cap)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=ed_fin[stable_mask], y=rho_plot[stable_mask],
+            mode='markers', marker=dict(color='#2E8B57', size=6),
+            name='Stable (ρ < 1)',
+        ))
+        fig.add_trace(go.Scatter(
+            x=ed_fin[~stable_mask], y=rho_plot[~stable_mask],
+            mode='markers', marker=dict(color='#DC143C', size=6),
+            name='Unstable (ρ ≥ 1)',
+        ))
+        fig.add_hline(y=1.0, line_dash='dash', line_color='gray',
+                      annotation_text='ρ = 1 (stability boundary)')
+        fig.update_layout(
+            height=600,
+            title_text=(
+                f'Spectral Radius vs ε_d — Fixed-Point Stability   '
+                f'(r={DEFAULT_PARAMS["r"]})'
+            ),
+            xaxis_title='Demand Elasticity (ε_d)',
+            yaxis_title='Spectral Radius  ρ = max|λᵢ|',
+            yaxis_range=[0, y_cap],
+            margin=dict(t=60, b=40),
+            legend=dict(yanchor='top', y=0.99, xanchor='right', x=0.99),
+        )
+        st.plotly_chart(fig, width='stretch')
 
 
 # ════════════════════════════════════════════════════════════════════════════

@@ -79,6 +79,48 @@ Default parameters (dimensionalized, from `System.py`):
 }
 ```
 
+## Stability Analysis
+
+The `DynamicalSystem` class includes numerical tools for local stability analysis of the 4D discrete map. Three methods work together:
+
+### `find_fixed_point(initial_guess=None, warmup_steps=500, tol=1e-10)`
+
+Finds a fixed point $x^*$ satisfying $G(x^*) = x^*$ by solving the root-finding problem $G(x) - x = 0$.
+
+**Algorithm:** `scipy.optimize.fsolve` — MINPACK's `hybrd` routine, a modified Powell hybrid method that switches between Newton steps and scaled gradient-descent steps. By default, the solver is warm-started by simulating the map forward 500 steps from the current state to get close to the attractor before refinement.
+
+### `jacobian(state=None, h=None)`
+
+Computes the $4 \times 4$ Jacobian matrix $J$ of the map at a given state using **central finite differences**:
+
+$$J_{ji} = \frac{G_j(x + h \, e_i) - G_j(x - h \, e_i)}{2h}$$
+
+The default perturbation $h = \varepsilon^{1/3} \cdot \max(1, |x_i|)$ where $\varepsilon \approx 2.2 \times 10^{-16}$ (float64 machine epsilon) gives $O(h^2)$ accuracy — the optimal trade-off between truncation and round-off error.
+
+### `stability_analysis(initial_guess=None, warmup_steps=500, tol=1e-10)`
+
+Orchestrates the full workflow: finds the fixed point, computes the Jacobian, and extracts eigenvalues via `numpy.linalg.eig` (LAPACK's `dgeev` — implicit QR iteration).
+
+For a discrete-time map, the fixed point is **stable** when the spectral radius $\rho = \max_i |\lambda_i| < 1$ (all eigenvalues inside the unit circle) and **unstable** when $\rho > 1$. The transition at $\rho = 1$ through a complex conjugate pair is a **Neimark-Sacker bifurcation** (the discrete-time analog of a Hopf bifurcation).
+
+**Example:**
+
+```python
+from System import DynamicalSystem, DEFAULT_PARAMS
+import numpy as np
+
+params = DEFAULT_PARAMS.copy()
+params.update({'pw1': 1.5, 'c1': 0.9, 'q1': 0.07})
+state = {'S': np.float128(0.6), 'E': np.float128(0.3),
+         'F': np.float128(0.1), 'FP': np.float128(0.1)}
+sys = DynamicalSystem(params, state, "dimensionalized")
+
+result = sys.stability_analysis()
+print(f"Spectral radius: {result['spectral_radius']:.4f}")
+print(f"Stable: {result['stable']}")
+print(f"Classification: {result['classification']}")
+```
+
 ## Getting Started
 
 **Requirements:** Python 3.10+
