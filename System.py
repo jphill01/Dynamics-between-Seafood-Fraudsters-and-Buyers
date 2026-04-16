@@ -391,6 +391,8 @@ class DynamicalSystem():
         harvest_arr = np.array(self.harvest(), dtype=np.float128)
         market_price_arr = np.array(self.market_price(), dtype=np.float128)
         wholesale_price_arr = np.array(self.wholesale_price(), dtype=np.float128)
+        revenue_arr = np.array(self.revenue_per_unit_effort(), dtype=np.float128)
+        cost_arr = np.array(self.cost_per_unit_effort(), dtype=np.float128)
         
         for _ in range(time):
             result = self.system_map()
@@ -406,6 +408,8 @@ class DynamicalSystem():
             market_price_arr = np.append(market_price_arr, result['market_price'])
             wholesale_price_arr = np.append(wholesale_price_arr, result['wholesale_price'])
             harvest_arr = np.append(harvest_arr, result['harvest'])
+            revenue_arr = np.append(revenue_arr, result['revenue_per_unit_effort'])
+            cost_arr = np.append(cost_arr, result['cost_per_unit_effort'])
         
         return {
             'Seafood': seafood,
@@ -415,6 +419,8 @@ class DynamicalSystem():
             'Market Price': market_price_arr,
             'Wholesale Price': wholesale_price_arr,
             'Harvest': harvest_arr,
+            'Revenue per Effort': revenue_arr,
+            'Cost per Effort': cost_arr,
         }
 
     def _evaluate_map_vec(self, state_vec):

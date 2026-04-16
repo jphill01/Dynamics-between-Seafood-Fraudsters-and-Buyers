@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 from System import DynamicalSystem, DEFAULT_PARAMS
 
 from .constants import _PW0, _C0, _Q0, FULL_INIT
-from .plots import plot_4var_ts, plot_bifurcation, plot_return_maps
+from .plots import plot_4var_ts, plot_ts_with_economics, plot_bifurcation, plot_return_maps
 
 
 @st.cache_data(show_spinner=False)
@@ -74,8 +74,8 @@ def scenario_2():
             )
         s2_pw_vals = st.multiselect(
             "pw₁ values for time series & poincare",
-            [1.10, 1.25, 1.50, 1.75, 2.00, 2.25, 2.50, 3.00, 4.00, 5.00],
-            default=[1.10, 1.50, 2.00, 3.00],
+            [0.25, 0.5, 0.75, 1.0, 1.10, 1.25, 1.50, 1.75, 2.00, 2.25, 2.50, 3.00, 4.00, 5.00],
+            default=[0.5, 0.75, 1.0, 1.50, 2.00],
             key="s2_pw",
         )
 
@@ -103,7 +103,7 @@ def scenario_2():
     )
 
     with tab_ts:
-        fig = plot_4var_ts(
+        fig = plot_ts_with_economics(
             ts2, t2, s2_pw_vals, 'pw₁',
             f'Prized Seafood — Time Series as pw₁ Increases   '
             f'(c₁=c₀={_C0},  q₁=q₀={_Q0},  r={DEFAULT_PARAMS["r"]})',

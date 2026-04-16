@@ -3,7 +3,7 @@ import numpy as np
 from System import DynamicalSystem, DEFAULT_PARAMS
 
 from .constants import _PW0, _C0, _Q0, FULL_INIT
-from .plots import plot_4var_ts, plot_bifurcation, plot_return_maps
+from .plots import plot_4var_ts_fp_zoom, plot_bifurcation, plot_return_maps
 
 
 def _blast_params(alpha: float) -> dict:
@@ -97,10 +97,11 @@ def scenario_3():
     )
 
     with tab_ts:
-        fig = plot_4var_ts(
+        fig = plot_4var_ts_fp_zoom(
             ts3, t3, s3_a_vals, 'α',
             f'Blast Fishing — Time Series by Destruction Intensity   '
             f'(r={DEFAULT_PARAMS["r"]}  |  q₁↑  pw₁↓  c₁↓↓)',
+            fp_ylim=0.05,
         )
         for i, lbl in enumerate(bp_labels):
             fig.layout.annotations[i].text = lbl

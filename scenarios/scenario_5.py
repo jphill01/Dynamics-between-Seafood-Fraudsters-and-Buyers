@@ -39,24 +39,6 @@ def s5_bifurcation(ed_min: float, ed_max: float, resolution: int,
 
 
 @st.cache_data(show_spinner=False)
-def s5_heatmap(ed_min: float, ed_max: float, ft_min: float, ft_max: float,
-               resolution: int, bif_time: int, burn_frac: float) -> tuple:
-    ed_hm = np.linspace(ed_min, ed_max, resolution)
-    ft_hm = np.linspace(ft_min, ft_max, resolution)
-    burn = int(bif_time * burn_frac)
-    hm_S = np.full((resolution, resolution), np.nan)
-    for i, ft in enumerate(ft_hm):
-        for j, ed in enumerate(ed_hm):
-            p = DEFAULT_PARAMS.copy()
-            p.update({'e_d': float(ed), 'F_threshold': float(ft)})
-            state = {k: np.float128(v) for k, v in FULL_INIT.items()}
-            sys = DynamicalSystem(p, state, "dimensionalized")
-            ts = sys.time_series_plot(time=bif_time)
-            hm_S[i, j] = float(np.mean(ts['Seafood'][burn:]))
-    return ed_hm.astype(np.float64), ft_hm.astype(np.float64), hm_S.astype(np.float64)
-
-
-@st.cache_data(show_spinner=False)
 def s5_spectral_sweep(ed_min: float, ed_max: float, resolution: int) -> tuple:
     ed_vals = np.linspace(ed_min, ed_max, resolution)
     rho_vals = np.empty(resolution)
@@ -93,7 +75,6 @@ def scenario_5():
             default=[2.0, 1.0, 0.5, 0.1],
             key="s5_ev",
         )
-        s5_hm_res = st.slider("Heatmap resolution (N×N grid)", 10, 50, 30, 5, key="s5_hm")
 
     if not s5_ed_vals:
         st.warning("Select at least one *ε_d* value.")
@@ -110,16 +91,12 @@ def scenario_5():
         be_e, be_S, be_E = s5_bifurcation(
             float(s5_rng[0]), float(s5_rng[1]), s5_res, 300, 0.6,
         )
-        st.write("Computing defence heatmap…")
-        ed_hm, ft_hm, hm_S = s5_heatmap(
-            0.05, 3.0, 0.05, 0.95, s5_hm_res, 300, 0.6,
-        )
         st.write("Computing stability sweep…")
         s5_ed_sweep, s5_rho = s5_spectral_sweep(0.05, 5.0, 100)
         status.update(label="Scenario 5 ready", state="complete", expanded=False)
 
-    s5_tab_ts, s5_tab_bif, s5_tab_hm, s5_tab_stab = st.tabs(
-        ["Time Series", "Bifurcation", "Defence Heatmap", "Stability"]
+    s5_tab_ts, s5_tab_bif, s5_tab_stab = st.tabs(
+        ["Time Series", "Bifurcation", "Stability"]
     )
 
     with s5_tab_ts:
@@ -138,33 +115,6 @@ def scenario_5():
             title='Bifurcation over ε_d   '
                   '(Low → buyers dependent  |  High → buyers sensitive to fraud)',
             vline_x=_def_ed, vline_label=f'Default ε_d = {_def_ed}',
-        )
-        st.plotly_chart(fig, width='stretch')
-
-    with s5_tab_hm:
-        fig = go.Figure(data=go.Heatmap(
-            z=hm_S, x=ed_hm, y=ft_hm,
-            colorscale='YlGnBu',
-            colorbar=dict(title='Mean S*'),
-            hovertemplate='ε_d=%{x:.2f}<br>F̂=%{y:.2f}<br>Mean S*=%{z:.4f}<extra></extra>',
-        ))
-        fig.add_trace(go.Scatter(
-            x=[DEFAULT_PARAMS['e_d']],
-            y=[DEFAULT_PARAMS['F_threshold']],
-            mode='markers',
-            marker=dict(color='red', size=14, symbol='x'),
-            name='Default',
-        ))
-        fig.update_layout(
-            height=600,
-            title_text=(
-                f'Buyer Defence Landscape — Mean S* across '
-                f'(ε_d, F̂) space   (r={DEFAULT_PARAMS["r"]})'
-            ),
-            xaxis_title='Demand Elasticity (ε_d)',
-            yaxis_title='Fraud Detection Threshold (F̂)',
-            margin=dict(t=60, b=40),
-            legend=dict(yanchor='top', y=0.99, xanchor='right', x=0.99),
         )
         st.plotly_chart(fig, width='stretch')
 
