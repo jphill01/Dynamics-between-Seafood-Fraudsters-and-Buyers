@@ -43,7 +43,7 @@ The full equations and derivations are presented in the Streamlit app (sourced f
 | # | Scenario | Focus Parameter | What It Tests |
 |---|----------|-----------------|---------------|
 | 1 | **Baseline (no fraud)** | Intrinsic growth rate $r$ | Pure bioeconomic S–E dynamics; onset of oscillations and chaos as $r$ increases |
-| 2 | **Prized / protected seafood** | Fraudster wholesale price $pw_1$ | What happens when illegal catch commands a premium over legal catch |
+| 2 | **Prized / protected seafood** | Fraudster wholesale price $p^w_1$ | What happens when illegal catch commands a premium over legal catch |
 | 3 | **Blast / cyanide fishing** | Destruction intensity $\alpha$ | Joint effect of higher catchability, lower costs, and lower wholesale prices from destructive methods |
 | 4 | **EEZ non-enforcement** | Violation intensity $\beta$ | Fishers access outside-EEZ waters — higher catchability but higher costs |
 | 5 | **Buyer dependence** | Demand elasticity $\varepsilon_d$ | When buyers need seafood regardless of fraud, the self-correcting mechanism breaks down |
