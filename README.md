@@ -61,7 +61,7 @@ Key parameters and their roles:
 | $r$ | Intrinsic growth rate of seafood biomass |
 | $K$ | Carrying capacity (normalized to 1) |
 | $q_0, q_1$ | Catchability when fraud is 0% vs 100% (dimensionalized). $q_0, q_1$ not considered in nondimensionalized system; combined as just $q$ (todo) |
-| $pw_0, pw_1$ | Wholesale price at 0% vs 100% fraud |
+| $p^w_0, pw_1$ | Wholesale price at 0% vs 100% fraud |
 | $c_0, c_1$ | Fishing cost at 0% vs 100% fraud |
 | $\varepsilon_d$ | Demand elasticity — buyer sensitivity to perceived fraud |
 | $\varepsilon_{s,w}, \varepsilon_{s,m}$ | Supply elasticities for wholesale and market prices |
