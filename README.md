@@ -166,4 +166,12 @@ Toggle individual scenarios on/off by changing the `if True` / `if False` guards
 
 ## References
 
+Bieg, C., McCann, K. S., and Fryxell, J. M. (2017). The dynamical implications of human behaviour on a social-ecological harvesting model. Theoretical Ecology, 10(3), 341–354. https://doi.org/10.1007/s12080-017-0334-3
+
+Bieg, C., Bartley, T. J., McCann, K. S., and Hanner, R. H. (2022). Replicating nature’s fabric: High information markets and the sustainability of global seafood. Food Webs, 32, e00239. https://doi.org/10.1016/j.fooweb.2022.e00239
+
+Fryxell, J. M., Hilborn, R., Bieg, C., Turgeon, K., Caskenette, A., and McCann, K. S. (2017). Supply and demand drive
+a critical transition to dysfunctional fisheries. Proceedings of the National Academy of Sciences, 114(46), 12333–12337. https://doi.org/10.1073/pnas.1705525114
+
+
 To be finished
