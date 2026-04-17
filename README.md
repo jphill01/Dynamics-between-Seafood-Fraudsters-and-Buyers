@@ -1,6 +1,6 @@
 # Dynamics between Seafood Fraudsters and Buyers
 
-A discrete-time dynamical systems model exploring how seafood fraud propagates through supply chains and how buyer awareness, market forces, and fishing practices create feedback loops that either stabilize or collapse fish stocks.
+A deterministic discrete-time dynamical systems model exploring how seafood fraud propagates through supply chains and how buyer awareness, market forces, and fishing practices create feedback loops that either stabilize or collapse fish stocks.
 
 ## Motivation
 
