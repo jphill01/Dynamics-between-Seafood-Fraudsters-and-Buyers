@@ -87,14 +87,14 @@ def scenario_7():
         st.write("Running time-series simulations…")
         ts7 = {esm: s7_time_series(float(esm), s7_sim) for esm in s7_esm_vals}
         t7 = np.arange(s7_sim + 1)
-        st.write("Computing bifurcation diagram…")
-        be_x, be_S, be_E = s7_bifurcation(
-            float(s7_rng[0]), float(s7_rng[1]), s7_res, 300, 0.6,
-        )
-        st.write("Computing stability sweep…")
-        s7_esm_sweep, s7_rho = s7_spectral_sweep(
-            float(s7_rng[0]), float(s7_rng[1]), 100,
-        )
+        # st.write("Computing bifurcation diagram…")
+        # be_x, be_S, be_E = s7_bifurcation(
+        #     float(s7_rng[0]), float(s7_rng[1]), s7_res, 300, 0.6,
+        # )
+        # st.write("Computing stability sweep…")
+        # s7_esm_sweep, s7_rho = s7_spectral_sweep(
+        #     float(s7_rng[0]), float(s7_rng[1]), 100,
+        # )
         status.update(label="Scenario 7 ready", state="complete", expanded=False)
 
     s7_tab_ts, s7_tab_bif, s7_tab_stab = st.tabs(
@@ -109,46 +109,46 @@ def scenario_7():
         )
         st.plotly_chart(fig, width='stretch')
 
-    with s7_tab_bif:
-        _def_esm = DEFAULT_PARAMS['e_sm']
-        fig = plot_bifurcation(
-            be_x, be_S, be_E,
-            xlabel='Market Supply Elasticity (ε_sm)',
-            title='Bifurcation over ε_sm   '
-                  '(Low → price insensitive  |  High → price responsive to supply)',
-            vline_x=_def_esm, vline_label=f'Default ε_sm = {_def_esm}',
-        )
-        st.plotly_chart(fig, width='stretch')
+    # with s7_tab_bif:
+    #     _def_esm = DEFAULT_PARAMS['e_sm']
+    #     fig = plot_bifurcation(
+    #         be_x, be_S, be_E,
+    #         xlabel='Market Supply Elasticity (ε_sm)',
+    #         title='Bifurcation over ε_sm   '
+    #               '(Low → price insensitive  |  High → price responsive to supply)',
+    #         vline_x=_def_esm, vline_label=f'Default ε_sm = {_def_esm}',
+    #     )
+    #     st.plotly_chart(fig, width='stretch')
 
-    with s7_tab_stab:
-        finite = np.isfinite(s7_rho)
-        esm_fin, rho_fin = s7_esm_sweep[finite], s7_rho[finite]
-        stable_mask = rho_fin < 1.0
-        y_cap = max(float(np.max(rho_fin[rho_fin < 50])) * 1.1, 2.0) if np.any(rho_fin < 50) else 5.0
-        rho_plot = np.clip(rho_fin, 0, y_cap)
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=esm_fin[stable_mask], y=rho_plot[stable_mask],
-            mode='markers', marker=dict(color='#2E8B57', size=6),
-            name='Stable (ρ < 1)',
-        ))
-        fig.add_trace(go.Scatter(
-            x=esm_fin[~stable_mask], y=rho_plot[~stable_mask],
-            mode='markers', marker=dict(color='#DC143C', size=6),
-            name='Unstable (ρ ≥ 1)',
-        ))
-        fig.add_hline(y=1.0, line_dash='dash', line_color='gray',
-                      annotation_text='ρ = 1 (stability boundary)')
-        fig.update_layout(
-            height=600,
-            title_text=(
-                f'Spectral Radius vs ε_sm — Fixed-Point Stability   '
-                f'(r={DEFAULT_PARAMS["r"]})'
-            ),
-            xaxis_title='Market Supply Elasticity (ε_sm)',
-            yaxis_title='Spectral Radius  ρ = max|λᵢ|',
-            yaxis_range=[0, y_cap],
-            margin=dict(t=60, b=40),
-            legend=dict(yanchor='top', y=0.99, xanchor='right', x=0.99),
-        )
-        st.plotly_chart(fig, width='stretch')
+    # with s7_tab_stab:
+    #     finite = np.isfinite(s7_rho)
+    #     esm_fin, rho_fin = s7_esm_sweep[finite], s7_rho[finite]
+    #     stable_mask = rho_fin < 1.0
+    #     y_cap = max(float(np.max(rho_fin[rho_fin < 50])) * 1.1, 2.0) if np.any(rho_fin < 50) else 5.0
+    #     rho_plot = np.clip(rho_fin, 0, y_cap)
+    #     fig = go.Figure()
+    #     fig.add_trace(go.Scatter(
+    #         x=esm_fin[stable_mask], y=rho_plot[stable_mask],
+    #         mode='markers', marker=dict(color='#2E8B57', size=6),
+    #         name='Stable (ρ < 1)',
+    #     ))
+    #     fig.add_trace(go.Scatter(
+    #         x=esm_fin[~stable_mask], y=rho_plot[~stable_mask],
+    #         mode='markers', marker=dict(color='#DC143C', size=6),
+    #         name='Unstable (ρ ≥ 1)',
+    #     ))
+    #     fig.add_hline(y=1.0, line_dash='dash', line_color='gray',
+    #                   annotation_text='ρ = 1 (stability boundary)')
+    #     fig.update_layout(
+    #         height=600,
+    #         title_text=(
+    #             f'Spectral Radius vs ε_sm — Fixed-Point Stability   '
+    #             f'(r={DEFAULT_PARAMS["r"]})'
+    #         ),
+    #         xaxis_title='Market Supply Elasticity (ε_sm)',
+    #         yaxis_title='Spectral Radius  ρ = max|λᵢ|',
+    #         yaxis_range=[0, y_cap],
+    #         margin=dict(t=60, b=40),
+    #         legend=dict(yanchor='top', y=0.99, xanchor='right', x=0.99),
+    #     )
+    #     st.plotly_chart(fig, width='stretch')

@@ -102,10 +102,10 @@ def scenario_4():
         bb_b, bb_S, bb_E = s4_bifurcation(
             float(s4_rng[0]), float(s4_rng[1]), s4_res, 300, 0.6,
         )
-        st.write("Computing stability heatmap…")
-        s4_c1_arr, s4_q1_arr, s4_stable = s4_stability_heatmap(
-            0.1, 3.0, 0.01, 0.5, 30,
-        )
+        # st.write("Computing stability heatmap…")
+        # s4_c1_arr, s4_q1_arr, s4_stable = s4_stability_heatmap(
+        #     0.1, 3.0, 0.01, 0.5, 30,
+        # )
         status.update(label="Scenario 4 ready", state="complete", expanded=False)
 
     ep_labels = [
@@ -113,8 +113,11 @@ def scenario_4():
         for b in s4_b_vals
     ]
 
-    tab_ts, tab_bif, tab_rm, tab_stab = st.tabs(
-        ["Time Series", "Bifurcation", "Poincare", "Stability"]
+    # tab_ts, tab_bif, tab_rm, tab_stab = st.tabs(
+    #     ["Time Series", "Bifurcation", "Poincare", "Stability"]
+    # )
+    tab_ts, tab_bif, tab_rm = st.tabs(
+        ["Time Series", "Bifurcation", "Poincare"]
     )
 
     with tab_ts:
@@ -141,41 +144,42 @@ def scenario_4():
         fig = plot_return_maps(ts4, s4_b_vals, 'β', _burn4)
         st.plotly_chart(fig, width='stretch')
 
-    with tab_stab:
-        s4_stable_clean = np.nan_to_num(s4_stable, nan=0.0)
-        colorscale = [[0, '#DC143C'], [1, '#2E8B57']]
-        fig = go.Figure(data=go.Heatmap(
-            z=s4_stable_clean, x=s4_c1_arr, y=s4_q1_arr,
-            colorscale=colorscale, zmin=0, zmax=1,
-            showscale=False,
-            hovertemplate='c₁=%{x:.2f}<br>q₁=%{y:.3f}<br>%{customdata}<extra></extra>',
-            customdata=np.where(s4_stable_clean == 1.0, 'Stable', 'Unstable'),
-        ))
-        fig.add_trace(go.Scatter(
-            x=[_C0], y=[_Q0], mode='markers',
-            marker=dict(color='white', size=14, symbol='x',
-                        line=dict(color='black', width=2)),
-            name='Default (c₀, q₀)',
-        ))
-        fig.add_trace(go.Scatter(
-            x=[None], y=[None], mode='markers',
-            marker=dict(color='#2E8B57', size=10, symbol='square'),
-            name='Stable (ρ < 1)',
-        ))
-        fig.add_trace(go.Scatter(
-            x=[None], y=[None], mode='markers',
-            marker=dict(color='#DC143C', size=10, symbol='square'),
-            name='Unstable (ρ ≥ 1)',
-        ))
-        fig.update_layout(
-            height=600,
-            title_text=(
-                f'Binary Stability Map — c₁ vs q₁   '
-                f'(pw₁={DEFAULT_PARAMS["pw1"]},  r={DEFAULT_PARAMS["r"]})'
-            ),
-            xaxis_title='Fishing Cost (c₁)',
-            yaxis_title='Catchability (q₁)',
-            margin=dict(t=60, b=40),
-            legend=dict(yanchor='top', y=0.99, xanchor='right', x=0.99),
-        )
-        st.plotly_chart(fig, width='stretch')
+    # with tab_stab:
+    #     s4_stable_clean = np.nan_to_num(s4_stable, nan=0.0)
+    #     colorscale = [[0, '#DC143C'], [1, '#2E8B57']]
+    #     fig = go.Figure(data=go.Heatmap(
+    #         z=s4_stable_clean, x=s4_c1_arr, y=s4_q1_arr,
+    #         colorscale=colorscale, zmin=0, zmax=1,
+    #         showscale=False,
+    #         hovertemplate='c₁=%{x:.2f}<br>q₁=%{y:.3f}<br>%{customdata}<extra></extra>',
+    #         customdata=np.where(s4_stable_clean == 1.0, 'Stable', 'Unstable'),
+    #     ))
+    #     fig.add_trace(go.Scatter(
+    #         x=[_C0], y=[_Q0], mode='markers',
+    #         marker=dict(color='white', size=14, symbol='x',
+    #                     line=dict(color='black', width=2)),
+    #         name='Default (c₀, q₀)',
+    #     ))
+    #     fig.add_trace(go.Scatter(
+    #         x=[None], y=[None], mode='markers',
+    #         marker=dict(color='#2E8B57', size=10, symbol='square'),
+    #         name='Stable (ρ < 1)',
+    #     ))
+    #     fig.add_trace(go.Scatter(
+    #         x=[None], y=[None], mode='markers',
+    #         marker=dict(color='#DC143C', size=10, symbol='square'),
+    #         name='Unstable (ρ ≥ 1)',
+    #     ))
+    #     fig.update_layout(
+    #         height=600,
+    #         title_text=(
+    #             f'Binary Stability Map — c₁ vs q₁   '
+    #             f'(pw₁={DEFAULT_PARAMS["pw1"]},  r={DEFAULT_PARAMS["r"]})'
+    #         ),
+    #         xaxis_title='Fishing Cost (c₁)',
+    #         yaxis_title='Catchability (q₁)',
+    #         margin=dict(t=60, b=40),
+    #         legend=dict(yanchor='top', y=0.99, xanchor='right', x=0.99),
+    #     )
+    #     st.plotly_chart(fig, width='stretch')
+

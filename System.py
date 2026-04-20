@@ -510,6 +510,11 @@ class DynamicalSystem():
 
             orbit_arr = np.array(orbit)
             x_mean = orbit_arr.mean(axis=0)
+
+            x_fallback = np.array([float(saved[k]) for k in STATE_KEYS])
+            for arr in (x_mean, x_last):
+                arr[~np.isfinite(arr)] = x_fallback[~np.isfinite(arr)]
+
             candidates.append(x_mean)
             candidates.append(x_last)
 
@@ -519,10 +524,17 @@ class DynamicalSystem():
         for _, x0 in enumerate(candidates):
             x0 = np.clip(x0, lower, upper)
 
-            ls_result = least_squares(
-                residual, x0, bounds=(lower, upper),
-                method='trf', max_nfev=5000,
-            )
+            if not np.all(np.isfinite(residual(x0))):
+                continue
+
+            try:
+                ls_result = least_squares(
+                    residual, x0, bounds=(lower, upper),
+                    method='trf', max_nfev=5000,
+                )
+            except ValueError:
+                continue
+
             x_star = ls_result.x
             res_norm = float(np.linalg.norm(residual(x_star)))
 
@@ -540,6 +552,14 @@ class DynamicalSystem():
             if res_norm < best_norm or (is_boundary == False):
                 best_result = ls_result
                 best_norm = res_norm
+
+        if best_result is None:
+            return {
+                'fixed_point': {k: float('nan') for k in STATE_KEYS},
+                'residual_norm': np.inf,
+                'converged': False,
+                'info': None,
+            }
 
         x_star = best_result.x
         res_norm = float(np.linalg.norm(residual(x_star)))
