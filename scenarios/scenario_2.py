@@ -5,6 +5,7 @@ from System import DynamicalSystem, DEFAULT_PARAMS
 
 from .constants import _PW0, _C0, _Q0, FULL_INIT
 from .plots import plot_4var_ts, plot_ts_with_economics, plot_bifurcation, plot_return_maps
+from ._status import scenario_header, status_indicator
 
 
 @st.cache_data(show_spinner=False)
@@ -54,7 +55,7 @@ def s2_spectral_sweep(pw_min: float, pw_max: float, resolution: int) -> tuple:
 
 @st.fragment
 def scenario_2():
-    st.header("Scenario 2 — Prized / Protected Seafood")
+    status_slot = scenario_header("Scenario 2 — Prized / Protected Seafood")
     st.caption(
         f"Fraudsters pay a premium for protected species (pw₁ > pw₀). "
         f"Same gear, same waters: c₁ = c₀ = {_C0}, q₁ = q₀ = {_Q0}. "
@@ -86,17 +87,17 @@ def scenario_2():
     s2_pw_vals = sorted(s2_pw_vals)
     _burn2 = int(s2_sim * 0.6)
 
-    with st.status("Computing Scenario 2…", expanded=True) as status:
-        st.write("Running time-series simulations…")
+    with status_indicator(status_slot, [
+        "Running time-series simulations",
+        "Computing bifurcation diagram",
+        "Computing stability sweep",
+    ]):
         ts2 = {pw: s2_time_series(float(pw), s2_sim) for pw in s2_pw_vals}
         t2 = np.arange(s2_sim + 1)
-        st.write("Computing bifurcation diagram…")
         bp_p, bp_S, bp_E = s2_bifurcation(
             float(s2_rng[0]), float(s2_rng[1]), s2_res, 300, 0.6,
         )
-        st.write("Computing stability sweep…")
         s2_pw_sweep, s2_rho = s2_spectral_sweep(0.05, 5.0, 100)
-        status.update(label="Scenario 2 ready", state="complete", expanded=False)
 
     tab_ts, tab_bif, tab_rm, tab_stab = st.tabs(
         ["Time Series", "Bifurcation", "Poincare", "Stability"]
@@ -106,7 +107,7 @@ def scenario_2():
         fig = plot_ts_with_economics(
             ts2, t2, s2_pw_vals, 'pw₁',
             f'Prized Seafood — Time Series as pw₁ Increases   '
-            f'(c₁=c₀={_C0},  q₁=q₀={_Q0},  r={DEFAULT_PARAMS["r"]})',
+            f'(c₁=c₀={_C0},  q₁=q₀={_Q0},  F_threshold={DEFAULT_PARAMS["F_threshold"]})',
         )
         st.plotly_chart(fig, width='stretch')
 
@@ -114,7 +115,7 @@ def scenario_2():
         fig = plot_bifurcation(
             bp_p, bp_S, bp_E,
             xlabel='pw₁ (black-market wholesale price)',
-            title=f'Bifurcation Diagram over pw₁   (r={DEFAULT_PARAMS["r"]})',
+            title=f'Bifurcation Diagram over pw₁   (F_threshold={DEFAULT_PARAMS["F_threshold"]})',
             vline_x=float(_PW0), vline_label=f'pw₀ = {_PW0}',
         )
         st.plotly_chart(fig, width='stretch')
@@ -146,7 +147,7 @@ def scenario_2():
             height=600,
             title_text=(
                 f'Spectral Radius vs pw₁ — Fixed-Point Stability   '
-                f'(c₁=c₀={_C0},  q₁=q₀={_Q0},  r={DEFAULT_PARAMS["r"]})'
+                f'(c₁=c₀={_C0},  q₁=q₀={_Q0},  F_threshold={DEFAULT_PARAMS["F_threshold"]})'
             ),
             xaxis_title='pw₁ (black-market wholesale price)',
             yaxis_title='Spectral Radius  ρ = max|λᵢ|',

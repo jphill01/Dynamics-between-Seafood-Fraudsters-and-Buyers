@@ -5,6 +5,7 @@ from plotly.subplots import make_subplots
 from System import DynamicalSystem, DEFAULT_PARAMS
 
 from .constants import S1_COLORS, S1_NO_FRAUD
+from ._status import scenario_header, status_indicator
 
 
 @st.cache_data(show_spinner=False)
@@ -40,7 +41,7 @@ def s1_bifurcation(r_min: float, r_max: float, resolution: int,
 
 @st.fragment
 def scenario_1():
-    st.header("Scenario 1 — Baseline Bioeconomic Model (No Fraud)")
+    status_slot = scenario_header("Scenario 1 — Baseline Bioeconomic Model (No Fraud)")
     st.caption(
         "F = 0, FP = 0 throughout. The system reduces to Seafood (S) vs "
         "Effort (E) only. Focus parameter: intrinsic growth rate *r*."
@@ -69,15 +70,15 @@ def scenario_1():
     _N = len(s1_r_vals)
     _burn = int(s1_sim * 0.6)
 
-    with st.status("Computing Scenario 1…", expanded=True) as status:
-        st.write("Running time-series simulations…")
+    with status_indicator(status_slot, [
+        "Running time-series simulations",
+        "Computing bifurcation diagram",
+    ]):
         ts1 = {rv: s1_time_series(float(rv), s1_sim) for rv in s1_r_vals}
         t1 = np.arange(s1_sim + 1)
-        st.write("Computing bifurcation diagram…")
         br_r, br_S, br_E = s1_bifurcation(
             float(s1_rng[0]), float(s1_rng[1]), s1_res, 300, 0.6,
         )
-        status.update(label="Scenario 1 ready", state="complete", expanded=False)
 
     tab_ts, tab_bif, tab_rm = st.tabs(
         ["Time Series", "Bifurcation", "Poincare"]

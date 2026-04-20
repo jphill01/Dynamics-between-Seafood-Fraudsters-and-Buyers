@@ -38,7 +38,7 @@ The full equations and derivations are presented in the Streamlit app (sourced f
 
 ## Research Scenarios
 
-`new_research.py` and the Streamlit app investigate seven scenarios using the dimensionalized model. Each scenario provides time series, bifurcation diagrams, and stability charts (spectral radius sweep):
+`new_research.py` and the Streamlit app investigate four scenarios using the dimensionalized model. Each scenario provides time series, bifurcation diagrams, and stability charts (spectral radius sweep):
 
 | # | Scenario | Focus Parameter | What It Tests |
 |---|----------|-----------------|---------------|
@@ -46,9 +46,9 @@ The full equations and derivations are presented in the Streamlit app (sourced f
 | 2 | **Prized / protected seafood** | Fraudster wholesale price $pw_1$ | What happens when illegal catch commands a premium over legal catch |
 | 3 | **Blast / cyanide fishing** | Destruction intensity $\alpha$ | Joint effect of higher catchability, lower costs, and lower wholesale prices from destructive methods |
 | 4 | **EEZ non-enforcement** | Violation intensity $\beta$ | Fishers access outside-EEZ waters — higher catchability but higher costs |
-| 5 | **Buyer dependence** | Demand elasticity $\varepsilon_d$ | When buyers need seafood regardless of fraud, the self-correcting mechanism breaks down |
-| 6 | **Supply elasticity (wholesale)** | Wholesale supply elasticity $\varepsilon_{s,w}$ | How wholesale price sensitivity to harvest volume affects effort dynamics and system stability ($\varepsilon_{s,w} \in [0, 3]$) |
-| 7 | **Supply elasticity (market)** | Market supply elasticity $\varepsilon_{s,m}$ | How market price sensitivity to harvest volume affects fraudster incentives and system stability ($\varepsilon_{s,m} \in [0, 3]$) |
+| WIP | **Buyer dependence** | Demand elasticity $\varepsilon_d$ | When buyers need seafood regardless of fraud, the self-correcting mechanism breaks down |
+| WIP | **Supply elasticity (wholesale)** | Wholesale supply elasticity $\varepsilon_{s,w}$ | How wholesale price sensitivity to harvest volume affects effort dynamics and system stability ($\varepsilon_{s,w} \in [0, 3]$) |
+| WIP | **Supply elasticity (market)** | Market supply elasticity $\varepsilon_{s,m}$ | How market price sensitivity to harvest volume affects fraudster incentives and system stability ($\varepsilon_{s,m} \in [0, 3]$) |
 
 ## Parameters
 

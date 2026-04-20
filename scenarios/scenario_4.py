@@ -5,6 +5,7 @@ from System import DynamicalSystem, DEFAULT_PARAMS
 
 from .constants import _C0, _Q0, FULL_INIT
 from .plots import plot_4var_ts, plot_bifurcation, plot_return_maps
+from ._status import scenario_header, status_indicator
 
 
 def _eez_params(beta: float) -> dict:
@@ -65,7 +66,7 @@ def s4_stability_heatmap(c1_min: float, c1_max: float,
 
 @st.fragment
 def scenario_4():
-    st.header("Scenario 4 — Non-Enforcement of EEZ")
+    status_slot = scenario_header("Scenario 4 — Non-Enforcement of EEZ")
     st.caption(
         "Fishers access outside-EEZ waters: q₁↑ (more fish), c₁↑ (higher cost). "
         f"pw₁ stays at default ({DEFAULT_PARAMS['pw1']}). "
@@ -94,19 +95,18 @@ def scenario_4():
     s4_b_vals = sorted(s4_b_vals)
     _burn4 = int(s4_sim * 0.6)
 
-    with st.status("Computing Scenario 4…", expanded=True) as status:
-        st.write("Running time-series simulations…")
+    with status_indicator(status_slot, [
+        "Running time-series simulations",
+        "Computing bifurcation diagram",
+    ]):
         ts4 = {b: s4_time_series(float(b), s4_sim) for b in s4_b_vals}
         t4 = np.arange(s4_sim + 1)
-        st.write("Computing bifurcation diagram…")
         bb_b, bb_S, bb_E = s4_bifurcation(
             float(s4_rng[0]), float(s4_rng[1]), s4_res, 300, 0.6,
         )
-        # st.write("Computing stability heatmap…")
         # s4_c1_arr, s4_q1_arr, s4_stable = s4_stability_heatmap(
         #     0.1, 3.0, 0.01, 0.5, 30,
         # )
-        status.update(label="Scenario 4 ready", state="complete", expanded=False)
 
     ep_labels = [
         f'β={b}  (q₁={_eez_params(b)["q1"]:.2f}, c₁={_eez_params(b)["c1"]:.2f})'
@@ -124,7 +124,7 @@ def scenario_4():
         fig = plot_4var_ts(
             ts4, t4, s4_b_vals, 'β',
             f'EEZ Non-Enforcement — Time Series by Violation Intensity   '
-            f'(r={DEFAULT_PARAMS["r"]}  |  q₁↑  c₁↑  |  '
+            f'(F_threshold={DEFAULT_PARAMS["F_threshold"]}  |  q₁↑  c₁↑  |  '
             f'pw₁={DEFAULT_PARAMS["pw1"]} default)',
         )
         for i, lbl in enumerate(ep_labels):
@@ -136,7 +136,7 @@ def scenario_4():
             bb_b, bb_S, bb_E,
             xlabel='EEZ Violation Intensity (β)',
             title='Bifurcation over β   '
-                  '(β=0 → honest  |  β=1 → q₁=0.30, c₁=2.00)',
+                  f'(F_threshold={DEFAULT_PARAMS["F_threshold"]}  |  β=0 → honest  |  β=1 → q₁=0.30, c₁=2.00)',
         )
         st.plotly_chart(fig, width='stretch')
 

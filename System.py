@@ -12,10 +12,10 @@ DEFAULT_PARAMS = {
     'gamma_s': 1.0,
     'gamma_e': 0.225,
     'gamma_f': 1.0,
-    'gamma_fp': 1.0,
+    'gamma_fp': 10.0,
     
     'e_d': 1.0,
-    'e_sw': 0.9,
+    'e_sw': 0.95,
     'e_sm': 1.0,
     
     'K': 1.0,

@@ -4,6 +4,7 @@ from System import DynamicalSystem, DEFAULT_PARAMS
 
 from .constants import _PW0, _C0, _Q0, FULL_INIT
 from .plots import plot_4var_ts_fp_zoom, plot_bifurcation, plot_return_maps, plot_ts_with_economics
+from ._status import scenario_header, status_indicator
 
 
 def _blast_params(alpha: float) -> dict:
@@ -47,7 +48,7 @@ def s3_bifurcation(a_min: float, a_max: float, resolution: int,
 
 @st.fragment
 def scenario_3():
-    st.header("Scenario 3 — Blast / Cyanide Fishing")
+    status_slot = scenario_header("Scenario 3 — Blast / Cyanide Fishing")
     st.caption(
         "Destructive methods: q₁↑  pw₁↓  c₁↓↓ (cost drops much more than price). "
         "A single destruction intensity α ∈ [0, 1] jointly scales all three."
@@ -75,15 +76,15 @@ def scenario_3():
     s3_a_vals = sorted(s3_a_vals)
     _burn3 = int(s3_sim * 0.6)
 
-    with st.status("Computing Scenario 3…", expanded=True) as status:
-        st.write("Running time-series simulations…")
+    with status_indicator(status_slot, [
+        "Running time-series simulations",
+        "Computing bifurcation diagram",
+    ]):
         ts3 = {a: s3_time_series(float(a), s3_sim) for a in s3_a_vals}
         t3 = np.arange(s3_sim + 1)
-        st.write("Computing bifurcation diagram…")
         ba_a, ba_S, ba_E = s3_bifurcation(
             float(s3_rng[0]), float(s3_rng[1]), s3_res, 300, 0.6,
         )
-        status.update(label="Scenario 3 ready", state="complete", expanded=False)
 
     bp_labels = [
         f'α={a}  (q₁={_blast_params(a)["q1"]:.2f}, '
@@ -100,7 +101,7 @@ def scenario_3():
         fig = plot_4var_ts_fp_zoom(
             ts3, t3, s3_a_vals, 'α',
             f'Blast Fishing — Time Series by Destruction Intensity   '
-            f'(r={DEFAULT_PARAMS["r"]}  |  q₁↑  pw₁↓  c₁↓↓)',
+            f'(F_threshold={DEFAULT_PARAMS["F_threshold"]}  |  q₁↑  pw₁↓  c₁↓↓)',
             fp_ylim=0.05,
         )
         for i, lbl in enumerate(bp_labels):
@@ -108,7 +109,7 @@ def scenario_3():
         fig = plot_ts_with_economics(
             ts3, t3, s3_a_vals, 'α',
             f'Blast Fishing — Time Series by Destruction Intensity   '
-            f'(r={DEFAULT_PARAMS["r"]}  |  q₁↑  pw₁↓  c₁↓↓)',
+            f'(F_threshold={DEFAULT_PARAMS["F_threshold"]}  |  q₁↑  pw₁↓  c₁↓↓)',
         )
         for i, lbl in enumerate(bp_labels):
             fig.layout.annotations[i].text = lbl
@@ -119,7 +120,7 @@ def scenario_3():
             ba_a, ba_S, ba_E,
             xlabel='Destruction Intensity (α)',
             title='Bifurcation over α   '
-                  '(α=0 → honest  |  α=1 → q₁=0.40, pw₁=0.60, c₁=0.10)',
+                  f'(F_threshold={DEFAULT_PARAMS["F_threshold"]}  |  α=0 → honest  |  α=1 → q₁=0.40, pw₁=0.60, c₁=0.10)',
         )
         st.plotly_chart(fig, width='stretch')
 
