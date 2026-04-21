@@ -8,10 +8,16 @@ from .plots import plot_4var_ts, plot_ts_with_economics, plot_bifurcation, plot_
 from ._status import scenario_header, status_indicator
 
 
+_FT_OPTIONS = [0.05, 0.25, 0.5, 0.75, 0.95]
+_PW_HOLD_OPTIONS = [
+    0.25, 0.5, 0.75, 1.0, 1.25, 1.50, 1.75, 2.00, 2.50, 3.00, 4.00, 5.00, 6.00, 7.00, 8.00,
+]
+
+
 @st.cache_data(show_spinner=False)
-def s2_time_series(pw1_val: float, sim_time: int) -> dict:
+def s2_time_series(pw1_val: float, ft_val: float, sim_time: int) -> dict:
     p = DEFAULT_PARAMS.copy()
-    p.update({'pw1': pw1_val, 'c1': _C0, 'q1': _Q0})
+    p.update({'pw1': pw1_val, 'c1': _C0, 'q1': _Q0, 'F_threshold': ft_val})
     state = {k: np.float128(v) for k, v in FULL_INIT.items()}
     sys = DynamicalSystem(p, state, "dimensionalized")
     ts = sys.time_series_plot(time=sim_time)
@@ -20,13 +26,13 @@ def s2_time_series(pw1_val: float, sim_time: int) -> dict:
 
 @st.cache_data(show_spinner=False)
 def s2_bifurcation(pw_min: float, pw_max: float, resolution: int,
-                   bif_time: int, burn_frac: float) -> tuple:
+                   bif_time: int, burn_frac: float, ft_val: float) -> tuple:
     pw_sweep = np.linspace(pw_min, pw_max, resolution)
     burn = int(bif_time * burn_frac)
     bp_p, bp_S, bp_E = [], [], []
     for pw in pw_sweep:
         p = DEFAULT_PARAMS.copy()
-        p.update({'pw1': float(pw), 'c1': _C0, 'q1': _Q0})
+        p.update({'pw1': float(pw), 'c1': _C0, 'q1': _Q0, 'F_threshold': ft_val})
         state = {k: np.float128(v) for k, v in FULL_INIT.items()}
         sys = DynamicalSystem(p, state, "dimensionalized")
         ts = sys.time_series_plot(time=bif_time)
@@ -37,6 +43,39 @@ def s2_bifurcation(pw_min: float, pw_max: float, resolution: int,
         bp_S.extend(s_att.tolist())
         bp_E.extend(e_att.tolist())
     return np.array(bp_p), np.array(bp_S), np.array(bp_E)
+
+
+@st.cache_data(show_spinner=False)
+def s2_time_series_ft(pw1_hold: float, ft_val: float, sim_time: int) -> dict:
+    p = DEFAULT_PARAMS.copy()
+    p.update({'pw1': pw1_hold, 'c1': _C0, 'q1': _Q0, 'F_threshold': ft_val})
+    state = {k: np.float128(v) for k, v in FULL_INIT.items()}
+    sys = DynamicalSystem(p, state, "dimensionalized")
+    ts = sys.time_series_plot(time=sim_time)
+    return {k: v.astype(np.float64) for k, v in ts.items()}
+
+
+@st.cache_data(show_spinner=False)
+def s2_bifurcation_ft(pw1_hold: float, ft_min: float, ft_max: float,
+                      resolution: int, bif_time: int, burn_frac: float) -> tuple:
+    ft_sweep = np.linspace(ft_min, ft_max, resolution)
+    burn = int(bif_time * burn_frac)
+    bf_f, bf_S, bf_E = [], [], []
+    for ft in ft_sweep:
+        p = DEFAULT_PARAMS.copy()
+        p.update({
+            'pw1': pw1_hold, 'c1': _C0, 'q1': _Q0, 'F_threshold': float(ft),
+        })
+        state = {k: np.float128(v) for k, v in FULL_INIT.items()}
+        sys = DynamicalSystem(p, state, "dimensionalized")
+        ts = sys.time_series_plot(time=bif_time)
+        s_att = ts['Seafood'][burn:].astype(np.float64)
+        e_att = ts['Effort'][burn:].astype(np.float64)
+        n = len(s_att)
+        bf_f.extend([float(ft)] * n)
+        bf_S.extend(s_att.tolist())
+        bf_E.extend(e_att.tolist())
+    return np.array(bf_f), np.array(bf_S), np.array(bf_E)
 
 
 @st.cache_data(show_spinner=False)
@@ -63,39 +102,88 @@ def scenario_2():
     )
 
     with st.expander("Parameters", expanded=False):
-        _c1, _c2, _c3 = st.columns(3)
-        with _c1:
-            s2_sim = st.slider("Simulation length", 100, 1000, 400, 50, key="s2_sim")
-        with _c2:
-            s2_res = st.slider("Bifurcation resolution", 50, 500, 200, 50, key="s2_res")
-        with _c3:
+        colA, colB = st.columns(2, gap="large")
+
+        with colA:
+            st.markdown("#### vs pw₁")
+            st.markdown("**Time Series & Poincare**")
+            s2_simA = st.slider("Time period", 100, 1000, 400, 50, key="s2_simA")
+            s2_pw_vals = st.multiselect(
+                "pw₁ values", _PW_HOLD_OPTIONS,
+                default=[1.0, 1.50, 2.00, 5.00, 8.00], key="s2_pw",
+            )
+            s2_ft_A = st.selectbox(
+                "F_threshold", _FT_OPTIONS,
+                index=_FT_OPTIONS.index(0.5), key="s2_ftA",
+            )
+            st.markdown("**Bifurcation**")
+            s2_bifA_iter = st.slider(
+                "Iteration length", 100, 1000, 300, 50, key="s2_bifA_iter",
+            )
+            s2_resA = st.slider(
+                "Resolution", 50, 500, 200, 50, key="s2_resA",
+            )
             s2_rng = st.slider(
-                "pw₁ sweep range", float(_PW0), 8.0, (float(_PW0), 5.0), 0.1,
+                "pw₁ range", float(_PW0), 8.0, (float(_PW0), 5.0), 0.1,
                 key="s2_rng",
             )
-        s2_pw_vals = st.multiselect(
-            "pw₁ values for time series & poincare",
-            [0.25, 0.5, 0.75, 1.0, 1.10, 1.25, 1.50, 1.75, 2.00, 2.25, 2.50, 3.00, 4.00, 5.00],
-            default=[0.5, 0.75, 1.0, 1.50, 2.00],
-            key="s2_pw",
-        )
+
+        with colB:
+            st.markdown("#### vs F_threshold")
+            st.markdown("**Time Series & Poincare**")
+            s2_simB = st.slider("Time period", 100, 1000, 400, 50, key="s2_simB")
+            s2_ft_vals = st.multiselect(
+                "F_threshold values", _FT_OPTIONS,
+                default=[0.25, 0.5, 0.75, 0.95], key="s2_ftv",
+            )
+            s2_pw_hold = st.selectbox(
+                "pw₁ (held)", _PW_HOLD_OPTIONS,
+                index=_PW_HOLD_OPTIONS.index(2.00), key="s2_pwhold",
+            )
+            st.markdown("**Bifurcation**")
+            s2_bifB_iter = st.slider(
+                "Iteration length", 100, 1000, 300, 50, key="s2_bifB_iter",
+            )
+            s2_resB = st.slider(
+                "Resolution", 50, 500, 200, 50, key="s2_resB",
+            )
+            s2_ft_rng = st.slider(
+                "F_threshold range", 0.0, 1.0, (0.1, 1.0), 0.05, key="s2_ftrng",
+            )
 
     if not s2_pw_vals:
         st.warning("Select at least one *pw₁* value.")
         return
+    if not s2_ft_vals:
+        st.warning("Select at least one *F_threshold* value.")
+        return
 
     s2_pw_vals = sorted(s2_pw_vals)
-    _burn2 = int(s2_sim * 0.6)
+    s2_ft_vals = sorted(s2_ft_vals)
+    _burnA = int(s2_simA * 0.6)
+    _burnB = int(s2_simB * 0.6)
 
     with status_indicator(status_slot, [
-        "Running time-series simulations",
-        "Computing bifurcation diagram",
+        "Running time-series simulations (pw₁ sweep)",
+        "Computing bifurcation diagram (pw₁ sweep)",
+        "Running time-series simulations (F_threshold sweep)",
+        "Computing bifurcation diagram (F_threshold sweep)",
         "Computing stability sweep",
     ]):
-        ts2 = {pw: s2_time_series(float(pw), s2_sim) for pw in s2_pw_vals}
-        t2 = np.arange(s2_sim + 1)
+        ts2 = {pw: s2_time_series(float(pw), float(s2_ft_A), s2_simA) for pw in s2_pw_vals}
+        t2_A = np.arange(s2_simA + 1)
         bp_p, bp_S, bp_E = s2_bifurcation(
-            float(s2_rng[0]), float(s2_rng[1]), s2_res, 300, 0.6,
+            float(s2_rng[0]), float(s2_rng[1]), s2_resA, s2_bifA_iter, 0.6,
+            float(s2_ft_A),
+        )
+        ts2_ft = {
+            ft: s2_time_series_ft(float(s2_pw_hold), float(ft), s2_simB)
+            for ft in s2_ft_vals
+        }
+        t2_B = np.arange(s2_simB + 1)
+        bf_f, bf_S, bf_E = s2_bifurcation_ft(
+            float(s2_pw_hold), float(s2_ft_rng[0]), float(s2_ft_rng[1]),
+            s2_resB, s2_bifB_iter, 0.6,
         )
         s2_pw_sweep, s2_rho = s2_spectral_sweep(0.05, 5.0, 100)
 
@@ -104,25 +192,48 @@ def scenario_2():
     )
 
     with tab_ts:
-        fig = plot_ts_with_economics(
-            ts2, t2, s2_pw_vals, 'pw₁',
-            f'Prized Seafood — Time Series as pw₁ Increases   '
-            f'(c₁=c₀={_C0},  q₁=q₀={_Q0},  F_threshold={DEFAULT_PARAMS["F_threshold"]})',
-        )
-        st.plotly_chart(fig, width='stretch')
+        tsA, tsB = st.tabs(["vs pw₁", "vs F_threshold"])
+        with tsA:
+            fig = plot_ts_with_economics(
+                ts2, t2_A, s2_pw_vals, 'pw₁',
+                f'Prized Seafood — Time Series as pw₁ Increases   '
+                f'(c₁=c₀={_C0},  q₁=q₀={_Q0},  F_threshold={s2_ft_A})',
+            )
+            st.plotly_chart(fig, width='stretch')
+        with tsB:
+            fig = plot_ts_with_economics(
+                ts2_ft, t2_B, s2_ft_vals, 'F_threshold',
+                f'Prized Seafood — Time Series as F_threshold Increases   '
+                f'(pw₁={s2_pw_hold},  c₁=c₀={_C0},  q₁=q₀={_Q0})',
+            )
+            st.plotly_chart(fig, width='stretch')
 
     with tab_bif:
-        fig = plot_bifurcation(
-            bp_p, bp_S, bp_E,
-            xlabel='pw₁ (black-market wholesale price)',
-            title=f'Bifurcation Diagram over pw₁   (F_threshold={DEFAULT_PARAMS["F_threshold"]})',
-            vline_x=float(_PW0), vline_label=f'pw₀ = {_PW0}',
-        )
-        st.plotly_chart(fig, width='stretch')
+        bifA, bifB = st.tabs(["vs pw₁", "vs F_threshold"])
+        with bifA:
+            fig = plot_bifurcation(
+                bp_p, bp_S, bp_E,
+                xlabel='pw₁ (black-market wholesale price)',
+                title=f'Bifurcation Diagram over pw₁   (F_threshold={s2_ft_A})',
+                vline_x=float(_PW0), vline_label=f'pw₀ = {_PW0}',
+            )
+            st.plotly_chart(fig, width='stretch')
+        with bifB:
+            fig = plot_bifurcation(
+                bf_f, bf_S, bf_E,
+                xlabel='F_threshold',
+                title=f'Bifurcation Diagram over F_threshold   (pw₁={s2_pw_hold})',
+            )
+            st.plotly_chart(fig, width='stretch')
 
     with tab_rm:
-        fig = plot_return_maps(ts2, s2_pw_vals, 'pw₁', _burn2)
-        st.plotly_chart(fig, width='stretch')
+        rmA, rmB = st.tabs(["vs pw₁", "vs F_threshold"])
+        with rmA:
+            fig = plot_return_maps(ts2, s2_pw_vals, 'pw₁', _burnA)
+            st.plotly_chart(fig, width='stretch')
+        with rmB:
+            fig = plot_return_maps(ts2_ft, s2_ft_vals, 'F_threshold', _burnB)
+            st.plotly_chart(fig, width='stretch')
 
     with tab_stab:
         finite = np.isfinite(s2_rho)
