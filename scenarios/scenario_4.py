@@ -5,6 +5,11 @@ from System import DynamicalSystem, DEFAULT_PARAMS
 
 from .constants import _C0, _Q0, FULL_INIT
 from .plots import plot_4var_ts, plot_bifurcation, plot_return_maps
+from ._status import scenario_header, status_indicator
+
+
+_FT_OPTIONS = [0.05, 0.25, 0.5, 0.75, 0.95]
+_BETA_HOLD_OPTIONS = [0.0, 0.10, 0.15, 0.25, 0.40, 0.55, 0.70, 0.85, 1.00]
 
 
 def _eez_params(beta: float) -> dict:
@@ -15,9 +20,10 @@ def _eez_params(beta: float) -> dict:
 
 
 @st.cache_data(show_spinner=False)
-def s4_time_series(beta_val: float, sim_time: int) -> dict:
+def s4_time_series(beta_val: float, ft_val: float, sim_time: int) -> dict:
     p = DEFAULT_PARAMS.copy()
     p.update(_eez_params(beta_val))
+    p['F_threshold'] = ft_val
     state = {k: np.float128(v) for k, v in FULL_INIT.items()}
     sys = DynamicalSystem(p, state, "dimensionalized")
     ts = sys.time_series_plot(time=sim_time)
@@ -26,13 +32,14 @@ def s4_time_series(beta_val: float, sim_time: int) -> dict:
 
 @st.cache_data(show_spinner=False)
 def s4_bifurcation(b_min: float, b_max: float, resolution: int,
-                   bif_time: int, burn_frac: float) -> tuple:
+                   bif_time: int, burn_frac: float, ft_val: float) -> tuple:
     b_sweep = np.linspace(b_min, b_max, resolution)
     burn = int(bif_time * burn_frac)
     bb_b, bb_S, bb_E = [], [], []
     for bv in b_sweep:
         p = DEFAULT_PARAMS.copy()
         p.update(_eez_params(float(bv)))
+        p['F_threshold'] = ft_val
         state = {k: np.float128(v) for k, v in FULL_INIT.items()}
         sys = DynamicalSystem(p, state, "dimensionalized")
         ts = sys.time_series_plot(time=bif_time)
@@ -43,6 +50,39 @@ def s4_bifurcation(b_min: float, b_max: float, resolution: int,
         bb_S.extend(s_att.tolist())
         bb_E.extend(e_att.tolist())
     return np.array(bb_b), np.array(bb_S), np.array(bb_E)
+
+
+@st.cache_data(show_spinner=False)
+def s4_time_series_ft(beta_hold: float, ft_val: float, sim_time: int) -> dict:
+    p = DEFAULT_PARAMS.copy()
+    p.update(_eez_params(beta_hold))
+    p['F_threshold'] = ft_val
+    state = {k: np.float128(v) for k, v in FULL_INIT.items()}
+    sys = DynamicalSystem(p, state, "dimensionalized")
+    ts = sys.time_series_plot(time=sim_time)
+    return {k: v.astype(np.float64) for k, v in ts.items()}
+
+
+@st.cache_data(show_spinner=False)
+def s4_bifurcation_ft(beta_hold: float, ft_min: float, ft_max: float,
+                      resolution: int, bif_time: int, burn_frac: float) -> tuple:
+    ft_sweep = np.linspace(ft_min, ft_max, resolution)
+    burn = int(bif_time * burn_frac)
+    bf_f, bf_S, bf_E = [], [], []
+    for ft in ft_sweep:
+        p = DEFAULT_PARAMS.copy()
+        p.update(_eez_params(beta_hold))
+        p['F_threshold'] = float(ft)
+        state = {k: np.float128(v) for k, v in FULL_INIT.items()}
+        sys = DynamicalSystem(p, state, "dimensionalized")
+        ts = sys.time_series_plot(time=bif_time)
+        s_att = ts['Seafood'][burn:].astype(np.float64)
+        e_att = ts['Effort'][burn:].astype(np.float64)
+        n = len(s_att)
+        bf_f.extend([float(ft)] * n)
+        bf_S.extend(s_att.tolist())
+        bf_E.extend(e_att.tolist())
+    return np.array(bf_f), np.array(bf_S), np.array(bf_E)
 
 
 @st.cache_data(show_spinner=False)
@@ -65,7 +105,7 @@ def s4_stability_heatmap(c1_min: float, c1_max: float,
 
 @st.fragment
 def scenario_4():
-    st.header("Scenario 4 — Non-Enforcement of EEZ")
+    status_slot = scenario_header("Scenario 4 — Non-Enforcement of EEZ")
     st.caption(
         "Fishers access outside-EEZ waters: q₁↑ (more fish), c₁↑ (higher cost). "
         f"pw₁ stays at default ({DEFAULT_PARAMS['pw1']}). "
@@ -73,109 +113,145 @@ def scenario_4():
     )
 
     with st.expander("Parameters", expanded=False):
-        _c1, _c2, _c3 = st.columns(3)
-        with _c1:
-            s4_sim = st.slider("Simulation length", 100, 1000, 400, 50, key="s4_sim")
-        with _c2:
-            s4_res = st.slider("Bifurcation resolution", 50, 500, 200, 50, key="s4_res")
-        with _c3:
-            s4_rng = st.slider("β sweep range", 0.0, 1.0, (0.0, 1.0), 0.05, key="s4_rng")
-        s4_b_vals = st.multiselect(
-            "β values for time series & poincare",
-            [0.0, 0.10, 0.15, 0.25, 0.40, 0.55, 0.70, 0.85, 1.00],
-            default=[0.15, 0.40, 0.70, 1.00],
-            key="s4_bv",
-        )
+        colA, colB = st.columns(2, gap="large")
+
+        with colA:
+            st.markdown("#### vs β")
+            st.markdown("**Time Series & Poincare**")
+            s4_simA = st.slider("Time period", 100, 1000, 400, 50, key="s4_simA")
+            s4_b_vals = st.multiselect(
+                "β values", _BETA_HOLD_OPTIONS,
+                default=[0.15, 0.40, 0.70, 1.00], key="s4_bv",
+            )
+            s4_ft_A = st.selectbox(
+                "F_threshold", _FT_OPTIONS,
+                index=_FT_OPTIONS.index(0.5), key="s4_ftA",
+            )
+            st.markdown("**Bifurcation**")
+            s4_bifA_iter = st.slider(
+                "Iteration length", 100, 1000, 300, 50, key="s4_bifA_iter",
+            )
+            s4_resA = st.slider(
+                "Resolution", 50, 500, 200, 50, key="s4_resA",
+            )
+            s4_rng = st.slider(
+                "β range", 0.0, 1.0, (0.0, 1.0), 0.05, key="s4_rng",
+            )
+
+        with colB:
+            st.markdown("#### vs F_threshold")
+            st.markdown("**Time Series & Poincare**")
+            s4_simB = st.slider("Time period", 100, 1000, 400, 50, key="s4_simB")
+            s4_ft_vals = st.multiselect(
+                "F_threshold values", _FT_OPTIONS,
+                default=[0.25, 0.5, 0.75, 0.95], key="s4_ftv",
+            )
+            s4_b_hold = st.selectbox(
+                "β (held)", _BETA_HOLD_OPTIONS,
+                index=_BETA_HOLD_OPTIONS.index(0.55), key="s4_bhold",
+            )
+            st.markdown("**Bifurcation**")
+            s4_bifB_iter = st.slider(
+                "Iteration length", 100, 1000, 300, 50, key="s4_bifB_iter",
+            )
+            s4_resB = st.slider(
+                "Resolution", 50, 500, 200, 50, key="s4_resB",
+            )
+            s4_ft_rng = st.slider(
+                "F_threshold range", 0.0, 1.0, (0.1, 1.0), 0.05, key="s4_ftrng",
+            )
 
     if not s4_b_vals:
         st.warning("Select at least one *β* value.")
         return
+    if not s4_ft_vals:
+        st.warning("Select at least one *F_threshold* value.")
+        return
 
     s4_b_vals = sorted(s4_b_vals)
-    _burn4 = int(s4_sim * 0.6)
+    s4_ft_vals = sorted(s4_ft_vals)
+    _burnA = int(s4_simA * 0.6)
+    _burnB = int(s4_simB * 0.6)
 
-    with st.status("Computing Scenario 4…", expanded=True) as status:
-        st.write("Running time-series simulations…")
-        ts4 = {b: s4_time_series(float(b), s4_sim) for b in s4_b_vals}
-        t4 = np.arange(s4_sim + 1)
-        st.write("Computing bifurcation diagram…")
+    with status_indicator(status_slot, [
+        "Running time-series simulations (β sweep)",
+        "Computing bifurcation diagram (β sweep)",
+        "Running time-series simulations (F_threshold sweep)",
+        "Computing bifurcation diagram (F_threshold sweep)",
+    ]):
+        ts4 = {b: s4_time_series(float(b), float(s4_ft_A), s4_simA) for b in s4_b_vals}
+        t4_A = np.arange(s4_simA + 1)
         bb_b, bb_S, bb_E = s4_bifurcation(
-            float(s4_rng[0]), float(s4_rng[1]), s4_res, 300, 0.6,
+            float(s4_rng[0]), float(s4_rng[1]), s4_resA, s4_bifA_iter, 0.6,
+            float(s4_ft_A),
         )
-        st.write("Computing stability heatmap…")
-        s4_c1_arr, s4_q1_arr, s4_stable = s4_stability_heatmap(
-            0.1, 3.0, 0.01, 0.5, 30,
+        ts4_ft = {
+            ft: s4_time_series_ft(float(s4_b_hold), float(ft), s4_simB)
+            for ft in s4_ft_vals
+        }
+        t4_B = np.arange(s4_simB + 1)
+        bf_f, bf_S, bf_E = s4_bifurcation_ft(
+            float(s4_b_hold), float(s4_ft_rng[0]), float(s4_ft_rng[1]),
+            s4_resB, s4_bifB_iter, 0.6,
         )
-        status.update(label="Scenario 4 ready", state="complete", expanded=False)
 
     ep_labels = [
         f'β={b}  (q₁={_eez_params(b)["q1"]:.2f}, c₁={_eez_params(b)["c1"]:.2f})'
         for b in s4_b_vals
     ]
+    hold_tag = (
+        f'β={s4_b_hold}  '
+        f'(q₁={_eez_params(s4_b_hold)["q1"]:.2f}, '
+        f'c₁={_eez_params(s4_b_hold)["c1"]:.2f})'
+    )
 
-    tab_ts, tab_bif, tab_rm, tab_stab = st.tabs(
-        ["Time Series", "Bifurcation", "Poincare", "Stability"]
+    tab_ts, tab_bif, tab_rm = st.tabs(
+        ["Time Series", "Bifurcation", "Poincare"]
     )
 
     with tab_ts:
-        fig = plot_4var_ts(
-            ts4, t4, s4_b_vals, 'β',
-            f'EEZ Non-Enforcement — Time Series by Violation Intensity   '
-            f'(r={DEFAULT_PARAMS["r"]}  |  q₁↑  c₁↑  |  '
-            f'pw₁={DEFAULT_PARAMS["pw1"]} default)',
-        )
-        for i, lbl in enumerate(ep_labels):
-            fig.layout.annotations[i].text = lbl
-        st.plotly_chart(fig, width='stretch')
+        tsA, tsB = st.tabs(["vs β", "vs F_threshold"])
+        with tsA:
+            fig = plot_4var_ts(
+                ts4, t4_A, s4_b_vals, 'β',
+                f'EEZ Non-Enforcement — Time Series by Violation Intensity   '
+                f'(F_threshold={s4_ft_A}  |  q₁↑  c₁↑  |  '
+                f'pw₁={DEFAULT_PARAMS["pw1"]} default)',
+            )
+            for i, lbl in enumerate(ep_labels):
+                fig.layout.annotations[i].text = lbl
+            st.plotly_chart(fig, width='stretch')
+        with tsB:
+            fig = plot_4var_ts(
+                ts4_ft, t4_B, s4_ft_vals, 'F_threshold',
+                f'EEZ Non-Enforcement — Time Series as F_threshold Increases   '
+                f'(held {hold_tag}  |  pw₁={DEFAULT_PARAMS["pw1"]} default)',
+            )
+            st.plotly_chart(fig, width='stretch')
 
     with tab_bif:
-        fig = plot_bifurcation(
-            bb_b, bb_S, bb_E,
-            xlabel='EEZ Violation Intensity (β)',
-            title='Bifurcation over β   '
-                  '(β=0 → honest  |  β=1 → q₁=0.30, c₁=2.00)',
-        )
-        st.plotly_chart(fig, width='stretch')
+        bifA, bifB = st.tabs(["vs β", "vs F_threshold"])
+        with bifA:
+            fig = plot_bifurcation(
+                bb_b, bb_S, bb_E,
+                xlabel='EEZ Violation Intensity (β)',
+                title='Bifurcation over β   '
+                      f'(F_threshold={s4_ft_A}  |  β=0 → honest  |  β=1 → q₁=0.30, c₁=2.00)',
+            )
+            st.plotly_chart(fig, width='stretch')
+        with bifB:
+            fig = plot_bifurcation(
+                bf_f, bf_S, bf_E,
+                xlabel='F_threshold',
+                title=f'Bifurcation over F_threshold   (held {hold_tag})',
+            )
+            st.plotly_chart(fig, width='stretch')
 
     with tab_rm:
-        fig = plot_return_maps(ts4, s4_b_vals, 'β', _burn4)
-        st.plotly_chart(fig, width='stretch')
-
-    with tab_stab:
-        s4_stable_clean = np.nan_to_num(s4_stable, nan=0.0)
-        colorscale = [[0, '#DC143C'], [1, '#2E8B57']]
-        fig = go.Figure(data=go.Heatmap(
-            z=s4_stable_clean, x=s4_c1_arr, y=s4_q1_arr,
-            colorscale=colorscale, zmin=0, zmax=1,
-            showscale=False,
-            hovertemplate='c₁=%{x:.2f}<br>q₁=%{y:.3f}<br>%{customdata}<extra></extra>',
-            customdata=np.where(s4_stable_clean == 1.0, 'Stable', 'Unstable'),
-        ))
-        fig.add_trace(go.Scatter(
-            x=[_C0], y=[_Q0], mode='markers',
-            marker=dict(color='white', size=14, symbol='x',
-                        line=dict(color='black', width=2)),
-            name='Default (c₀, q₀)',
-        ))
-        fig.add_trace(go.Scatter(
-            x=[None], y=[None], mode='markers',
-            marker=dict(color='#2E8B57', size=10, symbol='square'),
-            name='Stable (ρ < 1)',
-        ))
-        fig.add_trace(go.Scatter(
-            x=[None], y=[None], mode='markers',
-            marker=dict(color='#DC143C', size=10, symbol='square'),
-            name='Unstable (ρ ≥ 1)',
-        ))
-        fig.update_layout(
-            height=600,
-            title_text=(
-                f'Binary Stability Map — c₁ vs q₁   '
-                f'(pw₁={DEFAULT_PARAMS["pw1"]},  r={DEFAULT_PARAMS["r"]})'
-            ),
-            xaxis_title='Fishing Cost (c₁)',
-            yaxis_title='Catchability (q₁)',
-            margin=dict(t=60, b=40),
-            legend=dict(yanchor='top', y=0.99, xanchor='right', x=0.99),
-        )
-        st.plotly_chart(fig, width='stretch')
+        rmA, rmB = st.tabs(["vs β", "vs F_threshold"])
+        with rmA:
+            fig = plot_return_maps(ts4, s4_b_vals, 'β', _burnA)
+            st.plotly_chart(fig, width='stretch')
+        with rmB:
+            fig = plot_return_maps(ts4_ft, s4_ft_vals, 'F_threshold', _burnB)
+            st.plotly_chart(fig, width='stretch')

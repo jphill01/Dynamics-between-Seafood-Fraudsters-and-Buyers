@@ -11,6 +11,10 @@ def plot_4var_ts(ts_dict, t_arr, param_vals, param_label, title, colors=COLORS4)
         subplot_titles=[f'{param_label} = {v}' for v in param_vals] + [''] * _N,
         shared_xaxes=True, vertical_spacing=0.10, horizontal_spacing=0.05,
     )
+    se_max = max(
+        max(float(ts_dict[v]['Seafood'].max()), float(ts_dict[v]['Effort'].max()))
+        for v in param_vals
+    )
     for col, v in enumerate(param_vals, 1):
         d = ts_dict[v]
         show = col == 1
@@ -37,6 +41,7 @@ def plot_4var_ts(ts_dict, t_arr, param_vals, param_label, title, colors=COLORS4)
     fig.update_yaxes(title_text='S / E', row=1, col=1)
     fig.update_yaxes(title_text='F / FP', row=2, col=1)
     fig.update_yaxes(rangemode='tozero')
+    fig.update_yaxes(range=[0, se_max * 1.05], row=1)
     fig.update_xaxes(title_text='Time', row=2)
     fig.update_layout(
         height=600, title_text=title,
@@ -59,6 +64,10 @@ def plot_4var_ts_fp_zoom(ts_dict, t_arr, param_vals, param_label, title,
         rows=3, cols=_N,
         subplot_titles=[f'{param_label} = {v}' for v in param_vals] + [''] * 2 * _N,
         shared_xaxes=True, vertical_spacing=0.08, horizontal_spacing=0.05,
+    )
+    se_max = max(
+        max(float(ts_dict[v]['Seafood'].max()), float(ts_dict[v]['Effort'].max()))
+        for v in param_vals
     )
     for col, v in enumerate(param_vals, 1):
         d = ts_dict[v]
@@ -96,6 +105,7 @@ def plot_4var_ts_fp_zoom(ts_dict, t_arr, param_vals, param_label, title,
         fig.update_yaxes(range=[0, fp_ylim], row=3, col=col)
     fig.update_yaxes(rangemode='tozero', row=1)
     fig.update_yaxes(rangemode='tozero', row=2)
+    fig.update_yaxes(range=[0, se_max * 1.05], row=1)
     fig.update_xaxes(title_text='Time', row=3)
     fig.update_layout(
         height=800, title_text=title,
@@ -125,6 +135,10 @@ def plot_ts_with_economics(ts_dict, t_arr, param_vals, param_label, title,
         rows=4, cols=_N,
         subplot_titles=[f'{param_label} = {v}' for v in param_vals] + [''] * 3 * _N,
         shared_xaxes=True, vertical_spacing=0.07, horizontal_spacing=0.05,
+    )
+    se_max = max(
+        max(float(ts_dict[v]['Seafood'].max()), float(ts_dict[v]['Effort'].max()))
+        for v in param_vals
     )
     for col, v in enumerate(param_vals, 1):
         d = ts_dict[v]
@@ -175,6 +189,7 @@ def plot_ts_with_economics(ts_dict, t_arr, param_vals, param_label, title,
     fig.update_yaxes(title_text='Price', row=3, col=1)
     fig.update_yaxes(title_text='Per-Effort', row=4, col=1)
     fig.update_yaxes(rangemode='tozero')
+    fig.update_yaxes(range=[0, se_max * 1.05], row=1)
     fig.update_xaxes(title_text='Time', row=4)
     fig.update_layout(
         height=1000, title_text=title,
