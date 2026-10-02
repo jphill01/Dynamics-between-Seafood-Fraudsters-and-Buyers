@@ -14,7 +14,6 @@ The project has a live Streamlit app: https://dynamics-between-seafood-fraudster
 |------|---------|
 | `System.py` | Core `DynamicalSystem` class — nondimensionalized and dimensionalized model, single-step mapping, time series generation, stability analysis |
 | `app.py` | Streamlit web app |
-| `new_research.py` | Research scenarios — time series, bifurcation diagrams, return maps |
 | `text.py` | Markdown/LaTeX narrative displayed in the Streamlit app |
 | `requirements.txt` | Pinned dependencies |
 
@@ -35,13 +34,18 @@ The project has a live Streamlit app: https://dynamics-between-seafood-fraudster
 
 **Seafood & Effort:**
 ```
-S_{t+1} = S_t * exp(γ_S * (r*(1 - S_t/K) - q*E_t))
-E_{t+1} = E_t * exp(γ_E * (q * P^w_t * S_t - C_t))
+S_{t+1} = S_t * exp(γ_S * (r*(1 - S_t/K) - q_t*E_t))
+E_{t+1} = E_t * exp(γ_E * (q_t * P^w_t * S_t - C_t))
 ```
 
 **Harvest:**
 ```
-H_t = q * E_t * S_t
+H_t = q_t * E_t * S_t
+```
+
+**Seafood catchability**
+```
+q_t = (q1 - q0)*F_t + q0
 ```
 
 **Fishing cost and wholesale price (fraud-modulated):**
@@ -104,7 +108,7 @@ DEFAULT_PARAMS = {
 | `e_sw`, `e_sm` | Supply elasticities for wholesale and market prices |
 | `pw1`, `c1` | Wholesale price and cost at full fraud — key parameters for prized/protected species and destructive fishing scenarios |
 | `q1` | Catchability at full fraud — higher under blast/cyanide fishing |
-| `alpha`, `beta` | Destruction intensity and EEZ violation intensity (scenario-specific) |
+| `alpha` | Fraudster influence |
 
 ---
 
@@ -113,12 +117,9 @@ DEFAULT_PARAMS = {
 | # | Scenario | Key Parameter | What It Tests |
 |---|----------|---------------|---------------|
 | 1 | Baseline (no fraud) | `r` | Pure S–E bioeconomics; oscillations and chaos |
-| 2 | Prized / protected seafood | `pw1` | Illegal catch commanding a price premium |
-| 3 | Blast / cyanide fishing | `alpha` (destruction) | Higher catchability + lower costs + lower wholesale price |
-| 4 | EEZ non-enforcement | `beta` (violation) | Outside-EEZ access — higher catchability, higher costs |
-| WIP | Buyer dependence | `e_d` | When demand is inelastic to fraud perception, self-correction breaks |
-| WIP | Wholesale supply elasticity | `e_sw` | Price sensitivity to harvest volume and effort dynamics |
-| WIP | Market supply elasticity | `e_sm` | Market price sensitivity to harvest and fraudster incentives |
+| 2 | Prized / protected seafood | Illegal catch commanding a price premium |
+| 3 | Blast / cyanide fishing | Higher catchability + lower costs + lower wholesale price |
+| 4 | EEZ non-enforcement | Outside-EEZ access — higher catchability, higher costs |
 
 ---
 
@@ -129,6 +130,7 @@ The `DynamicalSystem` class has three key methods:
 - **`find_fixed_point()`** — Uses `scipy.optimize.least_squares` with Trust Region Reflective (TRF) to find `x*` satisfying `G(x*) = x*`, with box constraints to keep variables in physical bounds. Uses orbit-mean + last-iterate two-candidate strategy to handle limit cycles and chaos.
 - **`jacobian(state, h)`** — 4×4 Jacobian via central finite differences with optimal step size `h = ε^(1/3) * max(1, |x_i|)`.
 - **`stability_analysis()`** — Finds fixed point, computes Jacobian, extracts eigenvalues via `numpy.linalg.eig`. Spectral radius `ρ < 1` → stable; `ρ > 1` → unstable. Transition at `ρ = 1` through complex conjugate pair = Neimark-Sacker bifurcation.
+- **`continue_fixed_point()`** (in `core/continuation.py`) — Pseudo-arclength branch tracing of `G(x;μ)=x`; sibling of `stability_analysis()` for plotting equilibrium curves vs a free parameter.
 
 ---
 
@@ -148,12 +150,5 @@ The `DynamicalSystem` class has three key methods:
 - All state variables use `np.float128` for numerical precision
 - Plots use matplotlib; the Streamlit app uses the same `DynamicalSystem` class
 - Equations in `text.py` are raw LaTeX strings rendered by Streamlit
-
----
-
-## Current Research Priorities
-
-1. Completing WIP scenarios (buyer dependence, supply elasticities)
-2. Bifurcation diagram refinement across parameter sweeps
-3. Research highlight paper communicating model architecture and real-world applications
-4. Literature review connecting to financial instability / disaster myopia frameworks
+- All variables and functions should use snake_case
+- Be descriptive with variable and function naming: Prioritize meaning over short names (e.g., use elapsed_time_seconds instead of just t or ets)
